@@ -56,11 +56,10 @@ CC-BY 4.0
 
 ## Author info
 
-Jakub Kuzilek
-[Personal web](jakubkuzilek.github.io)
-jakub.kuzilek@gmail.com
-
-Computer Science Education / Computer Science and Society research group
-Department of Computer Science
-Faculty of Mathematics and Natural Sciences
+Jakub Kuzilek \
+[Personal web](jakubkuzilek.github.io) \
+jakub.kuzilek@gmail.com \
+Computer Science Education / Computer Science and Society research group \
+Department of Computer Science \
+Faculty of Mathematics and Natural Sciences \
 Humboldt-Universität zu Berlin
