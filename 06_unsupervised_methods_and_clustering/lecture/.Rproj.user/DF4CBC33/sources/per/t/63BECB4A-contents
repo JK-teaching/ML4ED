@@ -1,0 +1,127 @@
+---
+title: "01_submission"
+author: "Teresa Löffelhardt"
+date: "2024-05-08"
+output: html_document
+---
+# JK: you can delete this from here
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+# JK: to here
+
+
+```{r read_transform_write}
+
+read_transform_write <- function(input_path, output_path) {
+  input_file <- read.csv(input_path)
+  # JK: you do not need to create new data.frame, you can just select the required
+  #     columns and assign them to the result: result <- data[c("user_id", "assignment_id", "start_time", "end_time")]
+  result <- data.frame(user_id = input_file$user_id, assignment_id = input_file$assignment_id, start_time = input_file$start_time, end_time = input_file$end_time)
+  # JK: like that you explored both options
+  # result$elapsed_time <- round(difftime(as.POSIXct(result$end_time), as.POSIXct(result$start_time), units="secs"))
+  result$elapsed_time <- round(as.POSIXct(result$end_time) - as.POSIXct(result$start_time))
+  result$message <- paste("The user", result$user_id, "finished assignement", result$assignment_id, "in", result$elapsed_time, "seconds.")
+  # JK: I would recommend to include row.names = FALSE, because it is not necessary to store row names
+  write.csv(result, output_path)
+  # JK: you should be using the head function to print the first 5 rows, using the 
+  #     print with the selecting the rows and columns is not the best practice
+  print(result[1:5,])
+  # JK: return is not necessary R functions returns last value
+  return(0)
+}
+
+read_transform_write("assigment_data.csv", "task_1.csv")
+```
+
+```{r plot_histogram}
+
+plot_histogram <- function(df, col, bins) {
+  # JK: missing the check for the column type
+  hist(df[[col]], main = paste("Histogram of column", col), col = "azure3", xlab = col, breaks = bins)
+}
+
+data_frame <- read.csv("assigment_data.csv")
+plot_histogram(data_frame, "attempt_count", 3)
+````
+
+# Comments
+
+## General
+- comments in code starts with # JK:
+- I would recommend splitting code into more chunks to make it more readable
+- in general I would recommend to format code to have at maximum 80 chars per line - it will improve reading the code
+- comments is needed in the code (think of your future you, who will read the code in 6 months)
+
+## read_transform_write
+
+- you do not need to create new `data.frame` to prepare the `result`
+- I would recommend to include row.names = FALSE in `write.csv` to produce csv file, that is easier to share
+- use `head` function to print the first 5 rows not `print` with selecting the rows and columns
+- return is not necessary R functions returns last value, and it should be avoided
+
+## plot_histogram
+
+- check for column type is completely missing
+
+# Final assessment
+
+- code is working: 30/30
+- code is well written: 0/30 (more than 80 characters per row, creation of new data.frame instead of filtering the `input` `data.frame`, `return`,`head`, missing check for column type in `plot_histogram` function, no comments)
+- code is producing correct results: 40/40 
+- total: 70/100 PASSED
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

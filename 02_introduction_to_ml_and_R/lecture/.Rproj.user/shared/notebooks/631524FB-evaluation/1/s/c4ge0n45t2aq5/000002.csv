@@ -1,0 +1,11 @@
+"0","```r
+read_transform_write_templ <- function(input_path, output_path){
+  data <- read.csv(input_path)
+  result <- data[c(\"user_id\",\"assignment_id\",\"start_time\",\"end_time\")]
+  result$elapsed_time <- as.numeric(round(as.POSIXct(result$end_time) - as.POSIXct(result$start_time)))
+  result$message <- paste0(\"The user \",result$user_id,\" finished assignment \",result$assigment_id,\" in \",result$elapsed_time, \" seconds.\")
+  write.csv(result, file = output_path)
+  print(head(result,5))
+  0
+}
+```"

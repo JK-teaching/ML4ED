@@ -1,0 +1,310 @@
+---
+title: "Supervised methods - Naive Bayes, Perceptron"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Introduction
+At the end of this lecture you will:
+
+- know how to implement Naive Bayes classifier (NB)
+- know how to implement Perceptron algorithm 
+
+> The lecture contains non-mandatory small task, which should help you to deepen your understanding. The are quoted as this text.
+
+# Reproducibility
+Both algorithms we will be discussing today are deterministic. Thus, we do not need to set the seed for reproducibility. Still it is good practice to do it:
+```{r set-seed}
+set.seed(2206)
+```
+
+# Required packages
+
+We will be using `tidyverse` and `magrittr` libraries in this lecture.
+In addition we will be using library `caret`. You will find out 
+more about it later. Let us load them first:
+```{r tidyverse}
+library(tidyverse)
+library(magrittr)
+```
+
+# Data
+In this lecture we will be, again, using `iris` data set as in previous lecture.
+In case you need more info about the data set, you can use `?iris` command in R console 
+or you can consult the lecture 9.
+
+# Naïve Bayes classifier
+
+## Data
+From our presentation we know that the simplest implementations of the Naïve Bayes works
+with categorical variables. Thus we first cut the numeric intervals using our `santoku` knife :) At first, we need to install the package:
+```{r install-santoku, eval=FALSE}
+install.packages("santoku")
+```
+
+After installing the package we need to load it into the work environment:
+```{r use-santoku}
+library(santoku)
+```
+
+And now we can chop the numeric intervals to the categories. Let us start with defining the "lambda" function which will do the chopping of the numeric vector to 5 intervals for us:
+```{r lambda-chop}
+lambda <- function(x) {
+  breaks <- seq(min(x), # start
+                max(x), # stop
+                abs(max(x)-min(x))/5) # step
+  
+  lbls <- c("lowest","lower","middle","higher","highest")
+  
+  chop(x, breaks, lbls)
+}
+  
+```
+
+And now we can do the chopping:
+```{r}
+iris_categories <- 
+  iris %>% 
+  mutate(across(-starts_with("Speci"), lambda)) # apply to all columns except the species
+
+iris_categories
+```
+
+You can observe that we "categorized" all the features to categories. Please note,
+that this approach is the most simplest one. When performing analysis you need 
+to decide what is the best approach for categorizing the variables - based on distribution, requirements, etc.
+
+## Classifier
+
+Now we got the data for training our classifier. Since the Naïve Bayes classifier is in principle table containing conditional probabilities, we need to compute that. Let us start with the some absolute numbers:
+```{r nb-counts}
+N <- nrow(iris_categories) # total number of samples
+
+n_class <- # number of samples in each class
+  iris_categories %>% 
+  count(Species, name = "n_class") # count samples
+
+n_feature <- # number of samples in each feature combination
+  iris_categories %>%
+  select(-Species) %>% 
+  group_by(Petal.Length, Petal.Width, Sepal.Length, Sepal.Width) %>% 
+  count(name = "n_feature")
+
+n <- # number of samples in each feature category and class
+  iris_categories %>% 
+  pivot_longer(starts_with(c("Sepal","Petal")), names_to = "feature", values_to = "value") %>% # transform data to longer format
+  count(Species, feature, value) # count samples
+```
+
+And now we are prepared to count the probabilities. Let us start to compute class
+priors:
+```{r nb-priors}
+p_class <- 
+  n_class %>% 
+  mutate(p_class = n_class/N) 
+```
+
+We can continue with the feature evidences:
+```{r nb-evidences}
+p_feature <-
+  n_feature %>%
+  mutate(p_feature = n_feature/N)
+```
+
+Finally, we need to compute the likelihoods:
+```{r nb-likelihood}
+p_likelihood <-
+  n %>% 
+  inner_join(n_class, by = "Species") %>%
+  mutate(p_likelihood = n/n_class) %>% 
+  select(-starts_with("n")) %>% 
+  group_by(Species, feature) %>% 
+  pivot_wider(names_from = "value", 
+              values_from = "p_likelihood", 
+              values_fill = 0) %>% 
+  ungroup()
+```
+
+And now we have three tables: 
+ - `p_class` containing prior probabilities of class
+ - `p_feature` containing evidence probabilities of feature vector
+ - `p_likelihood` containing likelihoods of features being in classes
+ 
+When new sample came in, we pick the the proper values and compute posterior probabilities for new sample and select the class for which the probability is the highest. For example:
+```{r nb-new-sample}
+new_sample <- c(Sepal.Length = "middle", 
+                Sepal.Width = "lower",
+                Petal.Length = "higher",
+                Petal.Width = "higher")
+```
+
+Let us start computing the posterior probabilities:
+```{r nb-posterior}
+# function to count product of likelihoods in NB nominator
+count_likelihood <- function(df) {
+  likelihoods <- c()
+  
+  for(indx in 1:length(new_sample)) { # extract the likelihoods
+    likelihoods[indx] <- 
+      df %>% 
+      filter(feature == names(new_sample)[indx]) %>% # likelihood for feature 
+      select(new_sample[indx]) %>% # select likelihood for feature value
+      extract2(1) # extract the number
+  }
+  
+  prod(likelihoods) # return product of values
+}
+
+likelihood <-
+  p_likelihood %>% 
+  nest(data = -Species) %>% # nest data (take everything except Species and create "sub-data.frame")
+  mutate(likelihood = map_dbl(data, count_likelihood)) # apply the count_likelihood fnc
+
+evidence <- # get evidence of feature combination
+  p_feature %>% 
+  filter(Sepal.Length == "middle", 
+         Sepal.Width == "lower",
+         Petal.Length == "higher",
+         Petal.Width == "higher") %>% 
+  extract2("p_feature")
+
+likelihood %>% 
+  inner_join(p_class, by = "Species") %>% # add priors
+  mutate(posterior = likelihood*p_class/evidence) %>% # count posterior
+  filter(posterior == max(posterior)) %>% # pick max value of posterior
+  extract2("Species") # extract class
+```
+
+So our example is most probably `virginica` iris. In this, simple implementation
+you can observe how the probabilities are computed and the final decision is made.
+
+> Try to change the new sample values and se if the probabilities (class prediction) is changing. 
+
+> Try to change the interval choping and create more/less categories to see how this
+influence the computation.
+
+# Perceptron
+
+## Data
+For perceptron algorithm we need to slightly adjust the the labels (classes) of the data set. At first, algorithm works by default with only 2 classes and second it needs to 
+have class labels in form of `1` or `-1`. Thus we will merge `virginica` and `versicolor` iris flowers together. In addition, we will be working only with two features `Petal.Length` and `Sepal.Length`. So the algorithm is easier for understanding.
+
+```{r perc-data}
+iris_perc <-
+  iris %>% 
+  mutate(Species = if_else(Species == "setosa", 1, -1)) %>% 
+  select(Petal.Length,Sepal.Length,Species) %>% 
+  .[sample(nrow(.)),] # shuffle data (. means the value passed by %>%)
+```
+
+We can check the data visually:
+```{r perc-data-plot}
+iris_perc %>% 
+  ggplot(aes(x = Petal.Length, 
+             y = Sepal.Length,
+             color = as.factor(Species))) + # convert to factor for plotting
+  geom_point()
+```
+We can observe that we have two classes of iris dataset labeled `1` and `-1`. The perceptron algorithm will try to find the separating line between the classes. For the purpose
+of the visualisation we transformed the numeric label to factor using `as.factor` function.
+
+## Classifier
+
+The perceptron algorithm starts with initializing weights vector:
+```{r perc-weights}
+w <- rep(0, ncol(iris_perc))
+```
+
+And now we can start with the iterations for finding the separating line (in this case):
+```{r}
+iteration_limit <- 1000 # setting the limit
+
+counter <- 0 # iteration counter
+
+all_correct <- FALSE # solution found?
+
+# create extended features with intercept "feature"
+x <- iris_perc[,1:2]
+x[,3] <- 1
+
+y <- as.vector(iris_perc[,3]) # label vector
+
+# main loop checking all samples are classified correctly
+while(counter <= iteration_limit & !all_correct) { 
+  all_correct <- TRUE
+  counter <- counter + 1
+  
+  # in every iteration do the following
+  for(indx in 1:nrow(iris_perc)){ # for each sample
+    xi <- unlist(x[indx,]) # extract row (sample)
+  
+    # check if the dot product produce correct class
+    if(w%*%(y[indx]*xi) <= 0){ # inner product of two vectors is smaller than 0 -> incorrect class
+      w <- w + y[indx]*xi # add vector to the weights
+      all_correct <- FALSE
+      next # skip the rest and start over
+    }
+  }
+}
+```
+
+After several iterations our perceptron algorithm found the solution. We can plot 
+this solution in line with the data: 
+
+```{r perc-result}
+iris_perc %>% 
+  ggplot(aes(x = Petal.Length, 
+             y = Sepal.Length,
+             color = as.factor(Species))) + # convert to factor for plotting
+  geom_point() +
+  geom_abline(slope = -w[1]/w[2], intercept = -w[3]/w[2]) # plot the separating line
+```
+As you can see the separating line is going between the data. If the order of samples
+is different in the training dataset the resulting line will have different orientation. This is due the fact that the perceptron finds first feasible solution not the optimal one. For finding optimal one Support Vector Machines should be used. 
+
+> Try to shuffle the rows multiple times and observe how the result is changing.
+
+> Try to add one or two samples, which makes the data set linearly unseparable. Observe what happens.
+
+# Assigment
+
+In todays assignment we will be using, again, the [The HarvardX-MITx Person‐Course Dataset AY2013](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/26147). You can read more about this data set in the corresponding link. Your task is to extend
+previous assigment with the Naive Bayes classifier. You will predict if the student of course `HarvardX/CS50x/2012` will pass or fail the course (`grade` is 0 for failed and 1 for passed) based on `ndays_act` and `nchapters` features using both k-Nearest Neighbours and Naive Bayes (`nb`) classifiers. 
+
+## Instructions
+
+- Create R Notebook named `11_submission.Rmd`, in which you will 
+conduct the experiment.
+- Copy the code from the previous assignment `09_submission.Rmd`. 
+- Extend the code so that it will execute training of both classifiers and
+stores the validation results. 
+- Report the values of the Accuracy, Precision and Recall for both classifiers.
+- Pick the better classifier and print out its name.
+- Hints:
+  - For `nb` model you will need to install additional package `klaR`.
+  
+For the sake of simplicity you will find the instructions from previous task here:
+
+- Create R Notebook named `09_submission.Rmd`, in which you will 
+conduct the experiment.
+- Download the data set from the provided [link](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/26147).
+- Read data in R.
+- Prepare the data set for the classification task.
+  - Filter only students of the corresponding course `HarvardX/CS50x/2012`.
+  - Filter students who do not have the grade value (`grade = NA`) and 
+  focus on students who `explored` the course.
+  - Select target variable and features.
+  - Mutate target variable from 1/0 to pass/fail values.
+  - Replace missing values of features (`NA`s) with 0.
+- Load `caret`
+- Fix the seed for reproducibility
+- Split data set into 10-folds
+- Define the `trainControl` object
+  - Use 10-fold cross-validation for training.
+- Fit model using training data and evaluate them on validation fold.
+- Report the values of the Accuracy, Precision and Recall.
+
+## Submission
+Submit the task via Moodle in corresponding section. Your submission should contain
+one `.Rmd` file named `11_submission.Rmd`.

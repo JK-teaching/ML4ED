@@ -1,0 +1,8 @@
+"0","# define the train control object"
+"0","train_control <- trainControl(method = ""cv"","
+"0","                              number = 10)"
+"0",""
+"0","c45_model <- train(Survived ~ ., # special formula telling the caret to predict Survived based on all other vars "
+"0","                  data = train_data,"
+"0","                  method = ""J48"", # RWeka implementation of C4.5 decision tree training in Java"
+"0","                  trControl = train_control) "

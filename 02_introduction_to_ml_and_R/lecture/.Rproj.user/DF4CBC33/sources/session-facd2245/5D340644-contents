@@ -1,0 +1,83 @@
+```{r}
+read_transform_write <- function(input_path, output_path) { 
+
+    #Read the first argument of the function as a .csv file.
+    data <- read.csv(input_path)
+    
+    #Select desired rows from the variable data to result.
+    # JK: you can use also data[c("user_id", "assignment_id", "start_time", "end_time")], 
+    #     because you are selecting columns of the data.frame
+    result <- data[, c("user_id", "assignment_id", "start_time", "end_time")]
+    
+    #Add another column in result named "elapsed_time" that calculates difference between end_time and start_time and round to whole number
+    # JK: you have the error in the difftime - units should be "secs", because you
+    #     want to have seconds for the message
+    result$elapsed_time <- round(difftime(result$end_time, result$start_time, units = "mins"))
+    
+    #Add another column in result named "message" that ouputs a string.
+    result$message <- paste("The user", result$user_id, "finished assignment", result$assignment_id, "in", result$elapsed_time, "seconds.")
+    
+    #Create a .csv file from result as an ouput
+    write.csv(result, file = output_path, row.names = FALSE)
+    
+    #Print 5 rows of result
+    print(head(result, 5))
+    
+    #When finished return 0
+    return(0)
+}
+
+read_transform_write("assigment_data.csv", "task_1.csv")
+
+plot_histogram <- function(df, col, bins){
+
+    # Check if the column exists in the data frame or not.
+  # JK: include also check for column type is.numeric(df[[col]])
+    if (!col %in% names(df)) {
+        stop(paste("Column", col, "does not exist in the data frame"))
+    }
+    
+    #Assign the desired col that is the 2nd arg in plot_histogram function to data
+    data <- df[[col]]
+  
+    #Plotting the data with number of bins
+    hist(data, breaks = bins, col="azure3", main = paste("Histogram of column",     col), xlab = col)
+ 
+    #Add legend
+    # JK: not required by the task assignment
+    legend("topright", legend = col, col = "black", bg = "white", pch = 20, cex     =     0.8)
+
+}
+
+df <- read.csv("assigment_data.csv")
+
+plot_histogram(df, "attempt_count", 3)
+```
+
+# Comments
+
+## General
+- comments in code starts with # JK:
+- your code cannot be executed within the Rmd file - it is not in valid format
+- I am adding chunks to make it work
+- for the future I would recommend splitting code into multiple chunks to make it more readable
+- in general I would recommend to format code to have at maximum 80 chars per line - it will improve reading the code
+
+## read_transform_write
+
+- you can use also `data[c("user_id", "assignment_id", "start_time", "end_time")]`, because you are selecting columns of the data.frame
+- you have the error in the `difftime` - units should be "secs", because you want to have seconds for the message
+
+## plot_histogram
+
+- you should also check if the column is numeric since we are focusing on producing histogram
+- the legend is not required thus your solution produces different output
+
+# Final assessment
+
+- code is working: 0/30
+- code is well written: 28/30 (more than 80 chars per line)
+- code is producing correct results: 25/40 (`elapsed_time` in minutes, incorrect `message`, missing check for numeric column in `plot_histogram`)
+- total: 53/100 PASSED
+
+

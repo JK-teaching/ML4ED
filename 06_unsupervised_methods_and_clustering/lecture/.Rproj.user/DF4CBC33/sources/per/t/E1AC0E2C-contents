@@ -1,0 +1,96 @@
+---
+title: "Submission 1"
+author: "Carolin Wengler"
+date: "4/24/2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r define read_transform_write}
+read_transform_write <- function(input_path, output_path) {
+  # Read CSV and save specified columns
+  # JK: split data reading and processing into two steps, this improves readability
+  #     and makes it easier to debug
+  result <- read.csv(input_path)[c("user_id", "assignment_id", "start_time", "end_time")]
+
+  # Add elapsed_time
+  result["elapsed_time"] <-
+    round(as.POSIXct(result[["end_time"]]) - as.POSIXct(result[["start_time"]]))
+
+  # Add message
+  result["message"] <- paste(
+    "The user", result[["user_id"]],
+    "finished assignment", result[["assignment_id"]],
+    "in", result[["elapsed_time"]], "seconds."
+  )
+
+  # Print out first 5 rows
+  print(head(result, 5))
+
+  # Save results to output path
+  # JK: I would recommend to include row.names = FALSE, because it is not necessary to store row names
+  write.csv(result, output_path)
+
+  # JK: return is not necessary R functions returns last value
+  return(0)
+}
+```
+
+```{r execute read_transform_write}
+read_transform_write("assigment_data.csv", "task_1.csv")
+```
+
+```{r define plot_histogram}
+plot_histogram <- function(df, col, bins) {
+  # Check datatype of given column
+  # JK: numeric is sufficient, because integer is a subtype of numeric
+  datatype <- class(df[[col]])
+  if (!(datatype %in% c("integer", "numeric"))) {
+    stop(
+      paste0(
+        "Incorrect data type '", datatype, "' in column '", col, "'. ",
+        "Valid types are 'integer' and 'numeric'."
+      )
+    )
+  }
+  
+  # Plot histogram
+  hist(
+    df[[col]],
+    breaks = bins,
+    main = paste("Histogram of column", col),
+    col = "azure3",
+    xlab = col
+  )
+}
+```
+
+```{r execute plot_histogram}
+# JK: split the code into two lines to improve readability - data reading and plotting
+plot_histogram(read.csv("assigment_data.csv"), "attempt_count", 3)
+```
+# Comments
+
+## General
+- comments in code starts with # JK:
+
+## read_transform_write
+
+- split data reading and processing into two steps, this improves readability
+- I would recommend to include row.names = FALSE in `write.csv` to produce csv file, that is easier to share
+- return is not necessary R functions returns last value, and it should be avoided
+
+## plot_histogram
+
+- check for numeric is sufficient, because integer is a subtype of numeric
+- split the code into two lines to improve readability - data reading and plotting
+
+# Final assessment
+
+- code is working: 30/30
+- code is well written: 13/30 (split data reading and processing,`return`, only `numeric` check)
+- code is producing correct results: 40/40 
+- total: 73/100 PASSED

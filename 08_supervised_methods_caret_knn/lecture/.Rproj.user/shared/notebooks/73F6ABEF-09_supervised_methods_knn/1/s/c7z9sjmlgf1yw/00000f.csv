@@ -1,0 +1,4 @@
+"0","new_data <- "
+"0","  new_sample %>% # add sample to the first position"
+"0","  bind_rows(training_data) %>% "
+"0","  select(-Species) # drop labels"

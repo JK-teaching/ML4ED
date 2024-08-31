@@ -1,0 +1,122 @@
+---
+title: "01_submission.Rmd"
+output: html_document
+date: "2024-05-08"
+author: Jakob Thomas Krappe (630064)
+---
+
+# 1.
+
+```{r}
+# Reads data from a given .csv file, transforms it and writes the result into a new .csv file.
+# @param input_path - the input path for file containing data (has to be a .csv file)
+# @param output_path - the path to store the new .csv file as output to
+# @return '0' when finished
+# JK: you can also put it outside of the chunk  - it is not necessary to put it inside the code
+read_transform_write <- function(input_path, output_path){
+  
+  # Read the data.frame from the .csv file from given <input_path>.
+  new_data <- read.csv(input_path)
+  
+  # Extract some columns from data
+  # JK: you do not need to create new data.frame, you can just select the required
+  #     columns and assign them to the result: result <- data[c("user_id", "assignment_id", "start_time", "end_time")]
+  result <- data.frame(user_id = new_data$user_id,
+                       assignment_id = new_data$assignment_id,
+                       start_time = new_data$start_time,
+                       end_time = new_data$end_time)
+  
+  # Add a new column containing the elapsed time to the 'result' data.frame. Round to full seconds.
+  # JK: assignment of the new column using cbind is very nonstandard and might be 
+  #     source of errors; it is better to use $ operator or [] operator: result$elapsed_time <- round(...
+  elapsed_time <- round(as.POSIXct(result[["end_time"]]) - as.POSIXct(result[["start_time"]]))
+  result <- cbind(result, elapsed_time)
+  
+  # Add another column containing a string message (which contains some dynamic elements).
+  # JK: assignment of the new column using cbind is very nonstandard and might be 
+  #     source of errors; it is better to use $ operator or [] operator: result$message <- paste0(...
+  message <- paste0("The user ", result$user_id, " finished assignment ", result$assignment_id, " in ", result$elapsed_time, " seconds.")
+  result <- cbind(result, message)
+  
+  # Write the transformed data.frame into a new file.
+  # JK: I would recommend to include row.names = FALSE, because it is not necessary to store row names
+  write.csv(result, output_path)
+  
+  # Print the first five lines from transformed data.
+  print(head(result, 5))
+  
+  # JK: return is not necessary R functions returns last value
+  return(0)
+}
+```
+
+# 2.
+
+```{r}
+read_transform_write("assigment_data.csv", "task_1.csv")
+```
+
+# 3.
+
+```{r}
+# Extracts one given column of a given data.frame object and plots a histogram with it.
+# @param df - data.frame to compute
+# @param col - name of a column (as string) from data.frame
+# @param bins - number of bins in final histogram
+plot_histogram <- function(df, col, bins) {
+  
+  # Check type of data (Error handling for wrong input data)
+  # JK: better to check data using is.numeric than the class function, because you
+  #     you are omitting the check for double values
+  col_class <- class(df[[col]])
+  if(col_class != "integer") {
+    
+    # Throw an error, when column <col> does not exist inside the given data.frame <df>.
+    if(col_class == "NULL") {
+      stop(paste0("Column \"", col, "\" does not exist in provided data!"))
+    }
+    
+    # Also throw an error, when values inside column <col> are not integers.
+    stop(paste0("Column \"", col, "\" is of wrong type of values!"))
+  }
+  
+  # Plot the column <col> into a final histogram.
+  # Note: breaks argument only seems to be a suggestion for the number of bins displayed in the plot. Sometimes the 'hist' function actually does not use it.
+  # JK: for explanation see ?hist
+  hist(df[[col]],
+       main = paste0("Histogram of column ", col),
+       xlab = col,
+       col = "azure3",
+       breaks = bins)
+}
+```
+
+# 4.
+
+```{r}
+plot_histogram(read.csv("assigment_data.csv"), "attempt_count", 3)
+```
+# Comments
+
+## General
+- comments in code starts with # JK:
+- good work
+- in general I would recommend to format code to have at maximum 80 chars per line - it will improve reading the code
+
+## read_transform_write
+
+- you do not need to create new `data.frame` to prepare the `result`
+- assignment of the new column using cbind is very nonstandard, use `$` or `[]` operator
+- I would recommend to include row.names = FALSE in `write.csv` to produce csv file, that is easier to share
+- return is not necessary R functions returns last value, and it should be avoided
+
+## plot_histogram
+
+- check data using `is.numeric` than the `class` function; in addition, you are omitting the check for double values
+
+# Final assessment
+
+- code is working: 30/30
+- code is well written: 3/30 (more than 80 characters per row, creation of new data.frame instead of filtering the `input` `data.frame`, non-standard column assignment 2x, `return`, incorrect check for column type in `plot_histogram` function)
+- code is producing correct results: 40/40 
+- total: 73/100 PASSED

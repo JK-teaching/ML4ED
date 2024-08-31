@@ -1,0 +1,4 @@
+"0","rf_model <- train(Survived ~ ., # special formula telling the caret to predict Survived based on all other vars "
+"0","                  data = train_data,"
+"0","                  method = ""rf"", # the name of the random forest algorithm from list of caret available models"
+"0","                  trControl = train_control)"

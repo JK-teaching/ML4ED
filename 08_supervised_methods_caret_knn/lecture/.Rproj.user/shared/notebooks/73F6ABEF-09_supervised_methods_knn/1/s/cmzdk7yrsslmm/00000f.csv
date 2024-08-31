@@ -1,0 +1,2 @@
+"0","training_data <- # remove sample from iris"
+"0","  iris[-indx,]"

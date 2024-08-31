@@ -1,0 +1,2 @@
+"0","# create folds for error estimation"
+"0","folds <- createFolds(iris_caret$Species, list = FALSE)"

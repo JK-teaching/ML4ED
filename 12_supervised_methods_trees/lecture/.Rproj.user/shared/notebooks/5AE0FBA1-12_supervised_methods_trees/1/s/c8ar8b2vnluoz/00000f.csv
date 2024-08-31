@@ -1,0 +1,2 @@
+"0","titanic_data %<>% "
+"0","  drop_na()"

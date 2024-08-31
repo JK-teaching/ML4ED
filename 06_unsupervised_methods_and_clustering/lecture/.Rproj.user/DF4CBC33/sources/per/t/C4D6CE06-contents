@@ -1,0 +1,142 @@
+---
+title: "01_submission.Rmd"
+author: "Alina Pryma"
+date: "2024-05-04"
+output: html_document
+---
+
+1. Create function `read_transform_write` which:
+  - takes two arguments: `input_path` and `output_path` strings
+  - assumes that the input is csv file in required format (you do not need to check that)
+  - reads the file in the `input_path`
+  - selects the columns `user_id`,`assignment_id`,`start_time`,`end_time` and store them in new `data.frame` named `result`
+  (example_data_frame[c("first_col","second_col")] # select multiple columns -> new data.frame)
+  - creates new column `elapsed_time` in `result` containing time difference between `end_time` and `start_time`, round the difference to whole number.
+  - creates new column `message` in `result` containing string: `"The user <user_id> finished assignment <assignment_id> in <elapsed_time> seconds.`
+  - stores the `result` to the csv file in `output_path`
+  - prints out first 5 rows of the `result` 
+  - returns 0 when finished 
+  - Hints: 
+    - to delete column from `data.frame` you can assign `NULL` value to the corresponding column: `df$x <- NULL`
+    - it is possible to subtract two POSIXct values dt1-dt2, the result is in seconds
+    - check function `round` 
+    - for building the string you might search for the function `paste` or `paste0`
+    - there exists functions for examining structure of `data.frame` such as `str`, `head`, `tail`
+    
+```{r read_transform_write}
+#creating function
+read_transform_write <- function(input_path,output_path){ 
+  #read .csv file
+  data <- read.csv(input_path) 
+  # JK: this is unnecessary, you are printing out the data, but in the context of 
+  #     the function thus it will not be visible in the final output or console,
+  #     that means you are just wasting the computational resources
+  data
+  #store chosen columns in "result" df
+  # JK: you can use also data[c("user_id", "assignment_id", "start_time", "end_time")], 
+  #     because you are selecting columns of the data.frame,
+  #     you do not need to create data.frame when you are selecting columns - it is 
+  #     already a data.frame
+  result <- data.frame(data[, c("user_id", "assignment_id", "start_time", "end_time")])
+  # JK: same as above
+  result
+  #round difference of time in seconds, store in a new column
+  result$elapsed_time <- round(difftime(result$end_time,                          
+                               result$start_time, units = 'secs'))
+  #create message column
+  result$message <- paste0("The user ",result$user_id," finished assignment ",result$assignment_id," in ",result$elapsed_time," seconds.")
+  # store results in a new .csv file
+  # JK: I would recommend to include row.names = FALSE, because it is not necessary to store row names
+  write.csv(result, file = output_path)
+  # print first 5 rows
+  print(head(result, 5))  
+  # JK: return is not necessary R functions returns last value
+  return(0) 
+  
+}
+```
+
+2. Call the function `read_transform_write` with the arguments `assigment_data.csv` and `task_1.csv"`. Please, note
+that path might need to be changed based on the location of files and your system.
+
+```{r  call read_transform_write}
+#call the function
+read_transform_write("assigment_data.csv","task_1.csv")
+
+```
+
+3. Create function `plot_histogram` which:
+  - takes three arguments `df` data.frame, `col` string, `bins` number
+  - extracts the data from `df` column `col` and plots the histogram with corresponding number of `bins`
+    - histogram should have the title: `Histogram of column <col>`
+    - the bars should be `azure3` color
+    - the legend for the x axis should be the name of the column `col`
+  - make sure that the histogram function is working only for columns where it makes sense, else 
+  it should throw an error 
+  - Hints:
+    - to throw an error use function `stop`
+    
+```{r plot_histogram}
+#creating function
+plot_histogram <- function(df,col,bins){ 
+  # Check if the column exists
+  if (!(col %in% names(df))) {
+    stop("Column does not exist in the dataframe.")
+  }
+  
+  # Check if the column is numeric or integer
+  if (!is.numeric(df[[col]]) && !is.integer(df[[col]])) {
+    stop("Column must be numeric or integer to plot a histogram.")
+  }
+  
+  # Plot histogram
+  # JK: ylab is not required by the task assignment, thus your code produces the incorrect result
+  hist(df[[col]], 
+       breaks = bins, 
+       col = "azure3", 
+       main = paste("Histogram of column", col),
+       xlab = col, 
+       ylab = "Frequency")
+  
+}
+```
+    
+4. Call function `plot_histogram` with data.frame `df` loaded from `assigment_data.csv`
+and `col` set to `attempt_count` with `bins` set to `3`. 
+
+```{r  call plot_histogram}
+# Load the data
+df <- read.csv("assigment_data.csv")
+
+# Call plot_histogram function
+plot_histogram(df, col = "attempt_count", bins = 3)
+```
+    
+## Submission 
+Submit the task via Moodle in corresponding section. Your submission should contain
+one `.Rmd` file named `01_submission.Rmd`. 
+
+# Comments
+
+## General
+- comments in code starts with # JK:
+- in general I would recommend to format code to have at maximum 80 chars per line - it will improve reading the code
+
+## read_transform_write
+
+- you should avoid printing out the data.frames `data` and `result`
+- for data selection you can use also `data[c("user_id", "assignment_id", "start_time", "end_time")]`, because you are selecting columns of the data.frame
+- I would recommend to include row.names = FALSE in `write.csv` to produce csv file, that is easier to share
+- return is not necessary R functions returns last value, and it should be avoided
+
+## plot_histogram
+
+- ylab is not required by the task assignment
+
+# Final assessment
+
+- code is working: 30/30
+- code is well written: 8/30 (data.frame creation, data.frame printing, `return`, 80 chars per line, `ylab` in `plot_histogram`)
+- code is producing correct results: 40/40 
+- total: 78/100 PASSED
+  

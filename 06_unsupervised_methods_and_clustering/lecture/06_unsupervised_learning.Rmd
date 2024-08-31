@@ -1,0 +1,341 @@
+---
+title: "Unsupervised learning"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Introduction
+At the end of this lecture you will:
+
+- know how to perform clustering using  k-means algorithm (`kmeans`).
+- select the number of clusters `k` for the k-means algorithm
+- optionally:
+  - perform clustering using agglomerative hierarchical clustering (`hclust`)
+  - understand the structure of dendogram and the different distance computation
+approaches
+
+> The lecture contains non-mandatory small task, which should help you to deepen your understanding. The are quoted as this text.
+
+# Reproducibility
+The clustering algorithms, especially k-means, are sensitive to the initial setup. Thus
+you will never get the same result if you will "seed" properly random number generator.
+To do that you need to `set.seed` function at the start of your code. This will
+guarantee that your results are stable between multiple runs. So, let us set the seed first:
+```{r set-seed}
+set.seed(2206)
+```
+
+> To check random number generator state you cang access the value via `.Random.seed`. Try 
+to change seed to different number and check how the state changes.
+
+We will be using `tidyverse` libraries in this lecture. Let us load it first:
+```{r tidyverse}
+library(tidyverse)
+```
+
+
+# Visualization of results
+In this lecture we will be using libraries `factoextra` and `dendextend` for visualizing
+the results of clustering and PCA. And `cluster` package for computation 
+of the silhouette score. To be able to use it, we need to install it:
+```{r install-libraries, eval=FALSE}
+install.packages(c("factoextra","dendextend","cluster"))
+```
+
+When installed, the library needs to be loaded in R environment:
+```{r load-libraries,error=FALSE,warning=FALSE,message=FALSE}
+library(factoextra)
+library(dendextend)
+library(cluster)
+```
+
+# Data
+For our lecture we will be using data set containing statistics in arrests per
+100.000 residents in US in 1973. The data contains information about Murder, Assault
+Rape and percentage of urban population living in urban areas. The data set is available
+in R by default as `data.frame`. The name of the US state is not the data column in the 
+`data.frame` but it is stored as row name. This is not recommended way how to work with data 
+and it should be avoided. This "issue" is legacy of R age. Let us have a look:
+
+```{r usarrests}
+str(USArrests)
+
+head(USArrests)
+```
+
+Let us have a look on the data using scatter plot:
+```{r visual}
+USArrests %>% 
+  ggplot(aes(x = Murder, y = Assault, size = UrbanPop)) +
+  geom_point() +
+  theme_bw()
+```
+
+You can observe that there is some structure in data and we are going to explore it
+more with clustering. 
+
+> Try to explore the dataset structure more using ggplot library. Try to change
+`x`, `y` and `size` values. Try `geom_histogram`.
+
+# Clustering
+
+# Normalization and standardization
+As you already know, the data, which are processed by the clustering algorithms
+should be "somehow adjusted" in order make the values of individual features more 
+comparable. The most common approaches are normalization and standardization. We will
+explore them next.
+
+## Normalization
+Normalized data are scaled to the range between 0 and 1. The scaling reduces the 
+effect of outliers (data deviating much from the other data). To normalize we
+can can write our own function, which subtracts the minimum value from vector 
+and then divides the result with the range of the original vector (maximum - minimum):
+```{r normalize}
+normalize <- function(x) {
+  (x - min(x))/(max(x) - min(x))
+}
+```
+
+And we can test it with our `USArrests` data set:
+```{r normalized-arrests}
+normalized_USArrests <-
+  USArrests %>% 
+  mutate(across(everything(), normalize))
+
+head(normalized_USArrests)
+```
+
+You might notice the strange call of `mutate` function. The function `across` 
+enables you to do the mutation (or any other operation such as `summarise`) over
+the multiple columns at once. It takes two arguments columns and the function we 
+want to apply. Here we want to normalize all the columns, thus we made a shortcut
+for specifiing the columns using `everything` function.
+
+We can also check if it works properly using `purrr` function `map_dbl`:
+```{r normalized-arrests-check}
+normalized_USArrests %>% 
+  map_dbl(min)
+
+normalized_USArrests %>% 
+  map_dbl(max)
+```
+
+> Try to change the command using the `summarise` and `across` functions like in 
+the previous example.
+
+## Standardization
+Standardized data have mean value of 0 and their standard deviation is 1. For performing
+the standardization we can employ z-score standardization, which is implemented 
+in R using `scale` function:
+```{r standardization}
+USArrests[,1] %>% 
+  scale()
+```
+As you might notice the returned value is not in form of vector it is in form of matrix,
+thus we need to fix this to be able to store the values in the `data.frame`:
+```{r standardization-fix}
+standardize <- function(x) {
+  scale(x) %>% as.vector()
+}
+
+USArrests[,1] %>% 
+  standardize()
+```
+
+And now we can apply the same approach as before:
+```{r}
+standardized_USArrests <-
+  USArrests %>% 
+  mutate(across(everything(), standardize))
+
+head(standardized_USArrests)
+```
+
+> Try to make use of `map_df` instead of using `tidyverse` `mutate` function to 
+get the similar result.
+
+# Clustering algorithms
+
+## k-means clustering
+The second clustering algorithm is k-means. In comparison to the agglomerative hierarchical
+clustering it defines clearly the criteria function, which is optimized via two step
+approach. The algorithm is implemented with the function `kmeans`, which requires two 
+input parameters: the data and `k` number of clusters:
+```{r kmeans-basic}
+kmeans_result <- 
+  normalized_USArrests %>% 
+  kmeans(3)
+
+kmeans_result
+```
+The resulting k-means clustering object contains several items. At first the clustering
+vector of results:
+```{r kmeans-result}
+kmeans_result$cluster
+```
+Also the result contains the matrix of centers with coordinates of the cluster centers:
+```{r kmeans-centers}
+kmeans_result$centers
+```
+
+> Try to explore other items of the object. What contain `totss` and `withinss` values? 
+
+To visualize the result we can employ function from the `factoextra` package:
+```{r fviz_cluster}
+fviz_cluster(kmeans_result,USArrests)
+```
+You can observe that our four dimensional feature space is projected into two dimensions to
+enable "normal" plotting. This is internally done via Principal Component Analysis and
+selecting two most prominent dimensions covering approximately 86.7% of all information
+within the collected data. Cluster centers are plotted with larger point in the middle
+of the cluster.
+
+We reviewed the basics of the k-means algorithm, but how you can select the `k` 
+objectively. For that purpose we can use our well-know Elbow or Silhouette score
+method. To simplify the process, we can employ another function from the `factoextra`
+package - `fviz_nbclust`. Let us first try the Elbow method:
+```{r elbow-method}
+fviz_nbclust(normalized_USArrests,kmeans, method = "wss") +
+    geom_vline(xintercept = 2, linetype = 2) + theme(plot.title = element_blank())
+```
+You might notice that in the method parameter there is `wss` value, which is shortcut
+for within-cluster sum of squares. We can observe that the elbow appears with `k=2`. 
+Which suggests to use this value for the clustering. The another method for determining
+the number of clusters is the Silhouette score. Let us first plot the silhouette score
+for our 3-means clustering result:
+```{r silhouette}
+sil <- silhouette(kmeans_result$cluster, dist(normalized_USArrests))
+fviz_silhouette(sil)
+```
+We can observe the silhouette plot for our clustering result for each point
+in each cluster. To employ the average silhouette score for our `k` selection, 
+we need to run the `kmeans` multiple times with different `k` values and compute the
+silhouette for each value. Lucky for us, the function `fviz_nbclust` can do it
+for us:
+```{r avg-silhouette}
+fviz_nbclust(normalized_USArrests, kmeans, method = "silhouette")
+```
+And we can observe the average silhouette score evolution based on the number of 
+clusters `k`. We then need to pick the highest value and use the corresponding `k`
+as the number of clusters. For both of our methods the optimal number of clusters
+the value `2` has been selected. Let us redo our clustering and check the result:
+```{r optimal-kmeans}
+kmeans_optimal <-
+  normalized_USArrests %>% 
+  kmeans(2)
+
+kmeans_optimal
+```
+And again we can plot the clusters:
+```{r kmeans-optimal-plot}
+fviz_cluster(kmeans_optimal, USArrests)
+```
+> Try to use the original and standardized data. Check the results.
+
+> Try to implement the Elbow method by yourself.
+
+## OPTIONAL: Agglomerative hierarchical clustering
+The first method we will be working with is the Agglomerative hierarchical clustering.
+In the R implementation it does not work with the data set itself, but process 
+the distance (dissimilarity) object produced by `dist` function. In principle it is matrix, 
+but R process the data and provides you with object containing all matrix elements. 
+For our data set (we will be working with normalized one):
+```{r hac-dist}
+distances <- dist(normalized_USArrests)
+```
+
+We can convert the object to the matrix and have closer look on first 5 rows/columns:
+```{r hac-dist2}
+as.matrix(distances)[1:5,1:5]
+```
+
+After the distance matrix computation the clustering can be executed:
+```{r hac}
+hac_result <- hclust(distances)
+```
+
+We can explore the resulting object:
+```{r hac-result}
+hac_result
+
+summary(hac_result)
+```
+You can see that the resulting object does not tell much. However, one can use it
+for plotting the resulting dendogram structure, which is stored within this object:
+```{r hac-dendrogram}
+plot(hac_result)
+```
+Finally, you can select the number of desired clusters (for example) by visual inspection
+of the corresponding dendrogram and get the resulting cluster labels:
+```{r hac-cut}
+hac_cut <- cutree(hac_result, k = 3)
+```
+
+The command will produce the vector of cluster labels:
+```{r hac-cut2}
+hac_cut
+```
+If we want "prettify" the dendrogram with our clusters to see the final structure
+we can employ the functions from `dendextend` package. First the resulting object
+needs to be converted to the dendrogram object of the `dendextend` package and then
+we can plot it:
+```{r hac-dendextend}
+hac_dendrogram <- as.dendrogram(hac_result)
+color_dendrogram <- color_branches(hac_dendrogram, k = 3)
+plot(color_dendrogram)
+```
+And finally, we can add the cluster labels to our  data and plot them:
+```{r hac-plot}
+USArrests %>% 
+  mutate(cluster = as.factor(hac_cut)) %>% 
+  ggplot(aes(x = Murder, y = Assault, size = UrbanPop, color = cluster)) +
+  geom_point() +
+  theme_bw()
+```
+Please, note that the `ggplot2` package makes use of the `factors` in order to
+correctly determine the coloring of the points. If the color values is numeric then
+`ggplot2` assumes that feature is "scale" not the category and do the coloring 
+differently.
+
+> Try to use different distances than the `Euclidean`. You can use parameter `method` in 
+function call.
+
+> Try to explore different `method` values of parameters and check the resulting 
+dendrograms. 
+
+# Assigment
+
+In our third assignment we will be working with the subset of (OULAD data set)[https://analyse.kmi.open.ac.uk/open_dataset]. 
+This data set has been released by the Open University in United Kingdom and 
+contains the information about approximately 30,000 students of the university in
+years 2013 and 2014. In our case, we will be using the assessment data from the one 
+course. The assignment data are in the csv format (as usual) and stored data set
+contains 4 columns corresponding to the 4 assignments (A1 - A4). The values in cells
+are achieved scores in assignments by individual students. Each row represents one student.
+
+## Instructions
+Perform k-means clustering using the provided dataset:
+
+- read the data using `read_csv` function and store them in variable `input_data`
+- visualize the data using `ggplot2` library
+- normalize the data using the `normalize` function
+- impute the missing values with 0
+- select the optimal number of clusters `k` using both Elbow and Silhouette methods
+- pick one of the selected `k` values and perform the clustering
+- visualize the results using `fviz_cluster` function
+- Hints: 
+  - for visualization of the data you can use `geom_point` or `geom_histogram` functions
+    
+Optionally:
+
+- perform the clustering using the Agglomerative hierarchical clustering
+- visualize the results using the `dendextend` package
+- select the number of clusters `k` by visual inspection of the dendrogram
+- Hints:
+  - you can use the `cutree` function to get the cluster labels
+  - you can use the `color_branches` function to color the dendrogram branches
+    
+## Submission
+Submit the task via Moodle in corresponding section. Your submission should contain
+one `.Rmd` file named `05_submission.Rmd`.

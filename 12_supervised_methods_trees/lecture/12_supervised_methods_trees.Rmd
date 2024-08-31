@@ -1,0 +1,348 @@
+---
+title: "Supervised methods - Decision trees and Random Forest"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Introduction
+At the end of this lecture you will know ho to use:
+
+- decision tree classifier (CART and C4.5)
+- ensemble classifier - Random Forest
+
+# Reproducibility
+Several algorithms have randomization in its nature (for example Random Forest), thus
+we will fix the seed as usual:
+```{r set-seed}
+set.seed(2206)
+```
+
+# Required packages
+
+We will be using `tidyverse` and `caret` libraries in this lecture. Let us load it first:
+```{r tidyverse}
+library(tidyverse)
+library(caret)
+library(magrittr)
+```
+
+# Data
+In this lecture we will be using `titanic` dataset from the Kaggle competion. It
+is not presented in the base R. Luckily, it can be installed using `install.packages` command and downloaded in 
+appropriate format directly from CRAN. Let us install the package:
+```{r install-titanic, eval=FALSE}
+install.packages("titanic")
+```
+
+For our purpose we create the subset of `titanic` dataset, the `titanic_train` data,
+by subseting columns containing the following information:
+- `Survived` - the class we want to predict
+- `Pclass` - the class of the ticket
+- `Sex` - the sex of the passenger
+- `Age` - the age of the passenger
+- `SibSp` - the number of siblings/spouses aboard
+- `Parch` - the number of parents/children aboard
+- `Fare` - the fare of the ticket
+- `Embarked` - the port of embarkation
+
+So let use select those columns and store the data in the `titanic_data` variable:
+```{r titanic-select}
+library(titanic)
+
+titanic_data <-
+  titanic_train %>% 
+  select(Survived, Pclass, Sex, Age, SibSp, Parch, Fare, Embarked)
+```
+
+In addition to that, we will filter out the rows containing missing values (`NA`s):
+```{r titanic-filter}
+titanic_data %<>% 
+  drop_na()
+```
+
+Please note two things:
+ - we are using the special pipe `%<>%`, which pass the data to following steps (functions) and 
+ then stores the result into the original variable
+ - for filtering of `NA`s we are employing the function `drop_na` from `tidyr` package, which
+ detects all `NA` values and drops the row if it contains at least one `NA` value
+ 
+Now we can check the head of our dataset:
+```{r head-titanic}
+head(titanic_data)
+```
+
+Our class is stored in the column `Survived`, which is now numerical. To avoid future problems, 
+ we can transform it to the factor column:
+```{r titanic-class}
+titanic_data %<>% 
+  mutate(Survived = if_else(Survived == 1, "survived", "died"),
+         Survived = as.factor(Survived))
+```
+
+Finally, before we start with the decision trees, we will split the data to testing
+and training dataset:
+```{r titanic-train-test}
+# use function from caret package
+train_index <- createDataPartition(titanic_data$Survived, # over the class
+                                   p = 0.8, # do 80/20 split
+                                   list = FALSE, # return vector
+                                   times = 1) # create only 1 split
+
+train_data <- titanic_data[train_index, ]
+test_data <- titanic_data[-train_index, ]
+```
+
+Please note, that in real world you will be using cross-validation for estimating
+the classifier error. But in our example case, the normal 80/20 split is sufficient.
+
+# Decision trees
+
+## C4.5
+The C4.5 decision tree is implemented in the `RWeka` package and for visualising
+of the decision tree it requires `partykit` package. So we will first install
+the packages:
+```{r install-rweka-partykit, eval=FALSE}
+install.packages(c("RWeka","partykit"))
+```
+
+And now we can train the model using the `caret` package: 
+```{r c45-train}
+# define the train control object
+train_control <- trainControl(method = "cv",
+                              number = 10)
+
+c45_model <- train(Survived ~ ., # special formula telling the caret to predict Survived based on all other vars 
+                  data = train_data,
+                  method = "J48", # RWeka implementation of C4.5 decision tree training in Java
+                  trControl = train_control) 
+```
+
+The `caret` package took care about the training of our decision tree using the
+10-fold cross-validation. Now, we can explore the resulting model:
+```{r c45-model}
+c45_model
+```
+We can observe that the model has two parameters `C` - [confidence threshold](http://www.cs.bc.edu/~alvarez/ML/statPruning.html),
+and `M` - minimum instances per leaf. The training already used predefined `grid` 
+for finding the optimal values of those and the final values used in the selected
+model are `C = 0.01` and `M = 2`. To see the final model, we can extract it from
+the `caret` structure:
+```{r c45-final-model}
+c45_model$finalModel
+```
+
+The `caret` also converts the categorical variables to numeric value (the process
+is called dummyfication). You can see thatin the `Sex` feature, which has been 
+converted to feature `Sexmale` with values 0 and 1. This automatic conversion helps
+the `caret` interface to "ingest" various types of the data. To view the produced 
+tree in more "fashinable" way we can call plot function:
+```{r c45-plot}
+plot(c45_model$finalModel)
+```
+
+Finally we can check the model performance on our testing dataset:
+```{r c45-testing}
+predicted <- predict(c45_model, newdata = test_data)
+
+confusionMatrix(predicted, test_data$Survived, positive = "survived")
+```
+
+We can see that that the Recall (aka Sensitivity) is around 50 % for survived class and 
+the Precision (aka Pos Pred Value) is around 90%. That means this trained model is able 
+to identify approximately half of the surviving passengers. In addition, if he identifies 
+the surviving passenger then it is almost certain that he will survive. The 
+model accuracy is 80%, which is also not bad. The advantage is that the model
+is easy to interpret and very simple to implement. Of course, if we are pursuing
+different goals, then we need to pick other models, change the model parameters or 
+find different features.
+
+## CART tree
+The CART decision tree is implemented in the `rpart` package. For plotting of the
+tree we will be using `rpart.plot` package. At first we need to install packages:
+```{r cart-install, eval=FALSE}
+install.packages(c("rpart","rpart.plot"))
+```
+
+To train the model we will again use the `caret` package. Because of that we can
+reuse the `trainControl` object we defined for the C4.5 decision tree. Thus we "just"
+need to execute the training:
+```{r cart-train}
+cart_model <- train(Survived ~ ., # special formula telling the caret to predict Survived based on all other vars 
+                    data = train_data,
+                    method = "rpart", # rpart is the CART implementation for R
+                    trControl = train_control)
+```
+
+Let us explore the resulting model:
+```{r cart-model}
+cart_model
+```
+We can see that the tree has one parameter `cp` - Complexity parameter (complexity is based on 
+misclassification rate in terminal nodes and number of splits), and the evaluation selected
+the first value to be the best. Finally, we can explore the selected final model:
+```{r caret-final-model}
+cart_model$finalModel
+```
+
+As you can see the print of the tree is slightly different than for C4.5 model. However
+the tree structure is obvious. We can also plot the decision tree for better visual
+analysis:
+```{r}
+library(rpart.plot)
+rpart.plot(cart_model$finalModel)
+```
+
+The values in the nodes represents the the label in that node, the loss (error) with 
+the class prediction in that particular node and last value represents the number
+of samples falling in that particular node. That means in root node, all samples
+are presented and if we stop in this node the best label for class would be died and
+we will do error 0.41.
+
+Finally, we can again evaluate the performance of the model on unseen data:
+```{r cart-testing}
+prediction <- predict(cart_model, newdata = test_data)
+
+confusionMatrix(prediction, test_data$Survived, positive = "survived")
+```
+You can observe that the values of Precision and Recall are different compared to 
+C4.5 model. The Recall is higher and the Precision is lower,
+that means we are capturing more surviving passengers but for the price of doing 
+more mistakes in the classification. Interestingly the resulting tree is simpler 
+than the previous. This suggest that for these particular data the CART algorithm
+might be better choice, in case we are not pursuing the Precision as a goal.
+
+# Ensemble methods
+As you might remember from our lecture the ensemble methods make use of the multiple
+weak classifiers and combines them for achieving better performance. There are two
+approaches for creating ensemble of classifiers. We will focus on the bagging which 
+collects the responses from all available models and then creates the final decision
+based on the majority voting.
+
+## Bagging - CART
+For bagging we will be using the `adabag` package, which implements the original
+Breinman algorithm using CART decision trees. So, at first let us install the package:
+```{r bagging-install, eval=FALSE}
+install.packages("adabag")
+```
+
+With package installed we can employ the `caret` ML workflow again and train the bagging model:
+```{r bagging-train}
+bagging_train_control <- trainControl(method = "none")
+
+bagging_model <- train(Survived ~ ., # special formula telling the caret to predict Survived based on all other vars 
+                       data = train_data,
+                       method = "AdaBag", # the name of the bagging algorithm from list of caret available models
+                       trControl = bagging_train_control)
+```
+Because the cross-validation for the bagging algorithm take lot of time we will be
+using training method `none`, which means that we will fit only one model with 
+predefined values parameters `mfinal = 50` - number of trees and `maxdepth = 1` - max tree depth. 
+In real world scenario, you will need to take a coffee and wait :) 
+
+Let us explore the result:
+```{r bagging-result}
+bagging_model
+```
+You can see that there is information about parameter tunning is missing since there
+was no parameter tunning. Fortunately, we can still explore the resulting model. Unfortunately,
+the model object is represented by list of 14 items and it is very hard to browse through. Thus we will
+first check the item names:
+```{r bagging-final-model}
+names(bagging_model$finalModel)
+```
+The item `trees` contain the list of trained trees. We can explore first of them:
+```{r bagging-first-tree}
+bagging_model$finalModel$trees[[1]]
+```
+Another interesting item in the list is the importance which produce the relative 
+importance (0-100) of each variable in the dataset. You can observe that in our case,
+when we fixed the tunning the only important variable is `Sexmale`:
+```{r bagging-importance}
+bagging_model$finalModel$importance
+```
+
+Finally, we can again do the prediction of the using our testing data:
+```{r bagging-testing}
+prediction <- predict(bagging_model, newdata = test_data)
+
+confusionMatrix(prediction, test_data$Survived, positive = "survived")
+```
+We can observe that the final performance of the ensemble classifier is some what similar
+in sense of Accuracy, but the Sensitivity (aka Recall) increased by 20%. On the other
+hand the Precision (Pos Pred Value) is lowevered by approximately 15%. This is the 
+trade-off between Precision and Recall you will be facing in practice all the times and
+your decision about the optimal model needs to reflect the needs of your stakeholders.
+
+## Random Forest
+Random Forest is the bagging variant, which employs the Random Tree instead of the 
+CART tree in the training. Random Forest algorithm is implemented in the `randomForest` 
+package. So let us install it first:
+```{r rf-install, eval=FALSE}
+install.packages("rf")
+```
+
+With package installed we can train the model using our `caret` workflow:
+```{r rf-train}
+rf_model <- train(Survived ~ ., # special formula telling the caret to predict Survived based on all other vars 
+                  data = train_data,
+                  method = "rf", # the name of the random forest algorithm from list of caret available models
+                  trControl = train_control)
+```
+
+You might notice that the the training is relatively faster than in case of bagging algorithm.
+This is due to the background implementation in C++ and optimized routines. Let us
+explore the model:
+```{r rf-model}
+rf_model
+```
+The algorithm only parameter for tunning is the `mtry` - number of randomly selected features. 
+We can observe that the algorithm achieves the best result with `mtry = 2`. And now
+we can check the final model:
+```{r rf-final-model}
+rf_model$finalModel
+```
+Here we can see that our final forest contains 500 trees and the OOB error is 18.36%.
+The OOB is shortcut for Out-of-bag error and it is the mean error calculated for 
+samples, which has not been used for the tree training. For recall - the trees are
+trained on bootstraped sample of the original dataset (sampling with replacement).
+
+Finally, we can again evaluate the model with our testing data:
+```{r rf-testing}
+prediction <- predict(rf_model, newdata = test_data)
+
+confusionMatrix(prediction, test_data$Survived, positive = "survived")
+```
+We can observe that the accuracy of model is better than for previous models, but
+it has smaller Recall than bagging. It lies with the performance somewhere between
+the bagging and single decision tree models.
+
+# Assigment
+
+In our final assignment we will be using again [The Open University Learning Analytics dataset](https://analyse.kmi.open.ac.uk/open_dataset). You can read more about this data set in the corresponding link. Your task is to classify if students of one course will finish the course or not using the random forest algorithm. Since this is the final assignmet, it will be little bit harder. 
+
+## Instructions
+
+- Create R Notebook named `12_submission.Rmd`, in which you will conduct the experiment.
+- Install the dataset in R using `devtools::install_github("jakubkuzilek/oulad")` command.
+- Now you can load the data using `library(oulad)`. 
+- Select students of course (`code_module`) `DDD` and use the `code_presentation = 2013J` as training dataset and `code_presentation = 2014J` as testing dataset.
+- Combine the `student` table with the `student_assessment` table and filter out `Withdrawn` students. 
+- Select appropriate feature columns from the merged dataset (demographics and assessment scores) and use column `final_result` as target variable.
+- Train the model using 10-fold cross-validation.
+- Evaluate model performance using the testing dataset.
+- Comment your findings from the evaluation. Not within the code but as a text bellow the evaluation chunk.
+- Hints:
+  - Check the dataset description on webpage (see link above). It will help you to pick the columns.
+  - You will need at least functions from `dplyr` and `tidyr` packages. 
+  - The assessment scores are stored as rows and you will need to transform them
+  to corresponding columns (check `pivot_wider` function).
+  - Name the assessment score columns nicely do not use the `assessment_id` as name.
+  - There might be missing values - if you find them in the dataset you can, replace
+  them with some value (mean, "unknown",etc.) or filter out the corresponding rows (students)
+  from your datasets.
+  - Be sure that your training and testing data have the same columns.
+
+## Submission
+Submit the task via Moodle in corresponding section. Your submission should contain
+one `.Rmd` file named `12_submission.Rmd`.

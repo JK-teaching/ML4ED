@@ -1,0 +1,113 @@
+---
+title: "Evaluation"
+output: html_notebook
+---
+# Template solutions
+## read_transform_write
+1. Create function `read_transform_write` which:
+  - takes two arguments: `input_path` and `output_path` strings
+  - assumes that the input is csv file in required format (you do not need to check that)
+  - reads the file in the `input_path`
+  - selects the columns `user_id`,`assignment_id`,`start_time`,`end_time` and store them in new `data.frame` named `result`
+  - creates new column `elapsed_time` in `result` containing time difference between `end_time` and `start_time`, round the difference to whole number.
+  - creates new column `message` in `result` containing string: `"The user <user_id> finished assignment <assignment_id> in <elapsed_time> seconds.`
+  - stores the `result` to the csv file in `output_path`
+  - prints out first 5 rows of the `result` 
+  - returns 0 when finished 
+  - Hints: 
+    - to delete column from `data.frame` you can assign `NULL` value to the corresponding column: `df$x <- NULL`
+    - it is possible to subtract two POSIXct values dt1-dt2, the result is in seconds
+    - check function `round` 
+    - for building the string you might search for the function `paste` or `paste0`
+    - there exists functions for examining structure of `data.frame` such as `str`, `head`, `tail`
+```{r}
+read_transform_write_templ <- function(input_path, output_path){
+  data <- read.csv(input_path)
+  result <- data[c("user_id","assignment_id","start_time","end_time")]
+  result$elapsed_time <- as.numeric(round(as.POSIXct(result$end_time) - as.POSIXct(result$start_time)))
+  result$message <- paste0("The user ",result$user_id," finished assignment ",result$assigment_id," in ",result$elapsed_time, " seconds.")
+  write.csv(result, file = output_path)
+  print(head(result,5))
+  0
+}
+```
+
+### Getting template solution files
+```{r}
+read_transform_write_templ("assigment_data.csv","assigment_data_result.csv")
+read_transform_write_templ("evaluation_data.csv","evaluation_data_result.csv")
+```
+
+## plot_histogram
+2. Create function `plot_histogram` which:
+  - takes three arguments `df` data.frame, `col` string, `bins` number
+  - extracts the data from `df` column `col` and plots the histogram with corresponding number of `bins`
+    - histogram should have the title: `Histogram of column <col>`
+    - the bars should be `azure3` color
+    - the legend for the x axis should be the name of the column `col`
+  - make sure that the histogram function is working only for columns where it makes sense, else 
+  it should throw an error 
+  - Hints:
+    - to throw an error use function `stop`
+    
+```{r}
+plot_histogram_templ <- function(df, col, bins){
+  if(is.numeric(df[[col]])) {
+    hist(df[[col]], breaks = bins,
+         main = paste0("Histogram of column ",col),
+         col = "azure3",
+         xlab = col)
+  } else {
+    stop("Incorrect type of data!")
+  }
+}
+```
+
+
+# Get submission list
+```{r}
+library(tidyverse)
+library(testthat)
+library(purrr)
+solutions <-
+  tibble(path = dir("./submissions",include.dirs = TRUE,
+                    full.names = TRUE))
+
+eval_rtw <- function(path) {
+  tryCatch({
+  source(file.path(path,"read_transform_write.R"))
+  
+  tmp <- tempfile(fileext = ".csv")
+  
+  do.call("read_transform_write", list("assigment_data.csv", tmp))
+  
+  read.csv(tmp)},
+  error = function(e) NULL)
+}
+
+tmpl_solution <- read.csv("assigment_data_result.csv")
+
+solutions %<>%
+  mutate(rtw_a = purrr::map(path, eval_rtw))
+```
+
+```{r}
+source("~/Desktop/HU Berlin/teaching/machine_learning_for_education/02_R_and_R_Studio/submissions/ta/read_transform_write.R")
+
+tmpl_solution <- read.csv("assigment_data_result.csv")
+
+tmp <- tempfile(fileext = ".csv")
+do.call("read_transform_write", list("assigment_data.csv", tmp))
+sol <- read.csv(tmp)
+
+dim(sol)
+dim(tmpl_solution)
+
+head(sol)
+head(tmpl_solution)
+
+source("~/Desktop/HU Berlin/teaching/machine_learning_for_education/02_R_and_R_Studio/submissions/ta/plot_histogram.R")
+plot_histogram(assigment_data, "attempt_count", 2)
+
+```
+

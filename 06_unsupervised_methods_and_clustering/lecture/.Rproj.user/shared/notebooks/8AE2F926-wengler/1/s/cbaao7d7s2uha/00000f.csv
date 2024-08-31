@@ -1,0 +1,2 @@
+"0","# JK: split the code into two lines to improve readability - data reading and plotting"
+"0","plot_histogram(read.csv(""assigment_data.csv""), ""attempt_count"", 3)"

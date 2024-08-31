@@ -1,0 +1,76 @@
+```{r task-1}
+read_transform_write <- function(input_path, output_path) {
+  input <- read.csv(input_path)
+  # JK: you do not need to create new data.frame, you can just select the required
+  #     columns and assign them to the result: result <- data[c("user_id", "assignment_id", "start_time", "end_time")]
+  result <- data.frame(
+                      user_id = input$user_id,
+                      assignment_id = input$assignment_id,
+                      # POSIXct values may be substracted and result is in seconds
+                      start_time = as.POSIXct(input$start_time),
+                      end_time = as.POSIXct(input$end_time)
+                      )
+  result$elapsed_time <- round(result$end_time - result$start_time)
+  # JK: another possibility is to use paste function
+  result$message <- sprintf(
+                            "The user %d finished assignment %d in %d seconds.",
+                            result$user_id, result$assignment_id, result$elapsed_time
+                           )
+  write.csv(result, output_path)
+  print(head(result, 5))
+  # JK: return is not necessary R functions returns last value
+  return(0)
+}
+```
+
+```{r task-2}
+read_transform_write("assigment_data.csv", "task_1.csv")
+```
+
+```{r task-3}
+plot_histogram <- function(df, col, bins) {
+  # Only numeric values should be used in a histogram
+  if (is.numeric(df[[col]])) {
+    hist(
+      x = df[[col]],
+      main = sprintf("Histogram of column %s", col),
+      xlab = col, 
+      col = "azure3",
+      breaks = bins
+    ) 
+  } else {
+    stop("Wrong column, values must be numeric")
+  }
+}
+```
+
+```{r task-4}
+# JK: calling the data.frame on read.csv output is not necessary - it already 
+#     returns a data.frame, I would recommend to separate data loading and plotting
+plot_histogram(data.frame(read.csv("assigment_data.csv")), "attempt_count", 3)
+```
+
+# Comments
+
+## General
+- comments in code starts with # JK:
+- good work!
+- more comments is needed in the code (think of your future you, who will read the code in 6 months)
+
+## read_transform_write
+
+- you do not need to create new `data.frame` to prepare the `result`
+- for printing out you can also use `paste` or `paste0` function
+- return is not necessary R functions returns last value, and it should be avoided
+
+## plot_histogram
+
+- calling the data.frame on read.csv output is not necessary - it already returns a data.frame
+- split the data loading and plotting into two separate steps
+
+# Final assessment
+
+- code is working: 30/30
+- code is well written: 10/30 (missing comments, creation of new data.frame instead of filtering the `input` `data.frame`, unnecessary data.frame call in `plot_histogram`, `return`)
+- code is producing correct results: 40/40 
+- total: 80/100 PASSED

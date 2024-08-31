@@ -1,0 +1,5 @@
+"0","distances <-"
+"0","  new_data %>%"
+"0","  dist() %>% # count distance"
+"0","  as.matrix() %>% "
+"0","  extract(1,) # extract distances "

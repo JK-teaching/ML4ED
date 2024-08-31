@@ -1,0 +1,10 @@
+"0","bagging_train_control <- trainControl(method = ""none"")"
+"0",""
+"0","bagging_model <- train(Survived ~ ., # special formula telling the caret to predict Survived based on all other vars "
+"0","                       data = train_data,"
+"0","                       method = ""AdaBag"", # the name of the bagging algorithm from list of caret available models"
+"0","                       trControl = bagging_train_control)"
+"2","Registered S3 method overwritten by 'htmlwidgets':
+  method           from         
+  print.htmlwidget tools:rstudio
+"

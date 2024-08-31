@@ -1,0 +1,95 @@
+---
+title: "R Notebook"
+# JK: do not use html_notebook (in our case) - it will produce the additional output
+output: html_notebook
+---
+# JK: you can delete this from here
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*.
+
+```{r}
+plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+# JK: to here
+
+```{r}
+read_transform_write <- function(input_path, output_path) {
+  # JK: split data reading and processing into two steps, this improves readability
+  #     and makes it easier to debug, do not use ; at the end of line, you can use 
+  #     also data[c("user_id", "assignment_id", "start_time", "end_time")], 
+  #     because you are selecting columns of the data.frame 
+  result <- read.csv(file=input_path)[ ,c('user_id', 'assignment_id','start_time', 'end_time')];
+  result$elapsed_time <- round(difftime(result$end_time, result$start_time))
+  
+  result$message <- paste0("The user ",result$user_id," finished assignment ", result$assignment_id, " in ",result$elapsed_time," seconds.")
+  # JK: I would recommend to include row.names = FALSE, because it is not necessary to store row names
+  write.csv(result, output_path)
+  
+  print(head(result,5))
+  # JK: return is not necessary R functions returns last value
+  return(0)
+}
+```
+
+```{r}
+# JK: the assignment with = is not recommended in R, use <- instead
+output = read_transform_write("assigment_data.csv", "task_1.csv")
+```
+
+```{r}
+plot_histogram <- function(df, col, bins) {
+  # JK: use multiline if statement with {} to improve readability
+  if(!col %in% colnames(df)) stop("Column does not exist in data frame.")
+  # JK: you can use df[[col]], which is recommended for data.frames
+  column <- df[, col]
+  if (!is.numeric(column)) stop("Can't produce histogram for non-numeric column.")
+  hist(column,
+  main=paste0("Histogram of column ",col),
+  xlab=col,
+  col="azure3",
+  breaks=bins
+)
+}
+```
+
+```{r}
+# JK: inconsistent naming convention here you are using camelCase, but in the previous
+#     functions you are using snake_case
+assignmentData <- read.csv(file="assigment_data.csv");
+plot_histogram(assignmentData, "attempt_count", 3)
+```
+# Comments
+
+## General
+- comments in code starts with # JK:
+- I would recommend to use empty lines within your code to significantly improve readability (think of your future you)
+- in general I would recommend to format code to have at maximum 80 chars per line - it will improve reading the code
+
+## read_transform_write
+
+- reading and manipulation of the data in one step is never good idea, it is better to split it into two steps - it improves readability and makes it easier to debug
+- do not use `;` at the end of line
+- you can use also `data[c("user_id", "assignment_id", "start_time", "end_time")]`, because you are selecting columns of the data.frame
+- I would recommend to include row.names = FALSE in `write.csv` to produce csv file, that is easier to share
+- return is not necessary R functions returns last value, and it should be avoided
+- the assignment with = is not recommended in R, use <- instead
+
+## plot_histogram
+
+- use multiline if statement with {} to improve readability
+- for column selection you can use `df[[col]]`
+- inconsistent naming convention camelCase and snake_case
+
+# Final assessment
+
+- code is working: 30/30
+- code is well written: 9/30 (split data reading and processing, `;`, `return`, `=`, multiline if, inconsistent naming convention)
+- code is producing correct results: 40/40 
+- total: 79/100 PASSED

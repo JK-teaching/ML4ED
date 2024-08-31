@@ -1,0 +1,313 @@
+---
+title: "Supervised methods - k-Nearest Neighbours"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Introduction
+At the end of this lecture you will:
+
+- know how to implement k-Nearest Neighbours algorithm (k-NN)
+- be able to conduct ML experiment using `caret` package
+
+> The lecture contains non-mandatory small task, which should help you to deepen 
+your understanding. The are quoted as this text.
+
+# Reproducibility
+The k-NN is not influenced by the initialization problem like k-means algorithm, 
+but when performing the ML experiment you will be splitting data into the folds.
+Thus you will never get the same result. You need to "seed" properly random number
+generator to obtain the stable and reproducible results. To do that you need to `set.seed` function
+at the start of your code. This will guarantee that your results are stable 
+between multiple runs. So, let us set the seed first:
+```{r set-seed}
+set.seed(2206)
+```
+
+# Required packages
+
+We will be using `tidyverse` and `magrittr` libraries in this lecture.
+In addition we will be using library `caret`. You will find out 
+more about it later. Let us load them first:
+```{r tidyverse}
+library(tidyverse)
+library(magrittr)
+library(caret)
+```
+
+# Data
+In this lecture we will be using data set called `iris`. You can read details of 
+that dataset using `?iris`. It contains 150 samples of three different species
+of iris and measurements of their sepal and petal leaf. We can explore the first 
+few lines using `head`:
+```{r head-iris}
+head(iris)
+```
+
+As you can see we have 4 different features and one target variable, which represents
+the iris species. At first we can explore, if there are missing variables in the 
+data set:
+```{r iris-missing-data}
+iris %>% 
+  summarise(across(everything(),~ sum(is.na(.))))
+```
+As the iris data set is the training data set you can see that there are no missing 
+variables. But it is worth checking this at first to avoid future "problems". 
+TO deal with missing values, you can explore imputation techniques (those are out
+of the scope of this course, the most common one is replacing the missing values
+with mean value of the column) We checked missing values and now we can observe 
+the data set using the `ggplot2` package:
+```{r iris-plot}
+iris %>% 
+  ggplot(aes(x = Sepal.Length, 
+             y = Petal.Length,
+             color = Species)) +
+  geom_point()
+```
+You can observe that there is clear difference of the setosa class compared
+to versicolor and virginica species. We can also observe that versicolor is somewhere
+in the middle "bellow" the virginica, but the clear distinction is not possible.
+
+> Try to play with the x- and y-axis features to see if the distribution of class
+values is the same in all feature combinations.
+
+# k-Nearest Neighbours
+
+The k-Nearest Neighbors, which works with measuring the distance from new sample
+to the samples in the training set. Since the algorithm did not involve any model
+training we can proceed directly to the classification. In our case, we will create
+an artificial scenario, on which we will develop the simple implementation of the
+algorithm. The scenario involves removing one sample from the `iris` data set and
+using it as new sample to classify. We will use the `dist` function to compute the
+distance between the samples and then we will pick `k = 3` closest samples to the new
+sample. The classification will be done by majority voting. 
+
+At first, let us pick one random sample from `iris` dataset to play our new sample.
+We will pick the samplenumber 104:
+```{r knn-new-sample}
+indx <- 104
+
+new_sample <- 
+  iris[indx,]
+```
+
+We also need to remove the sample from the training data set:
+```{r knn-new-sample-remove}
+training_data <- # remove sample from iris
+  iris[-indx,]
+```
+
+Now, we have our new sample and we can compute distances between sample and all
+other samples in `training_data` and pick `k = 3` closest samples. At first, we 
+will append the sample to the training data set and drop the labels, which we do not 
+want to use in the distance computation:
+```{r knn-new-data}
+new_data <- 
+  new_sample %>% # add sample to the first position
+  bind_rows(training_data) %>% 
+  select(-Species) # drop labels
+```
+
+Next we will compute the distance between our new sample and all other samples in
+the training data set. In addition, we will transform the distance matrix to the
+standard matrix and extract the distances between our sample and the training data:
+```{r knn-dist}
+distances <-
+  new_data %>%
+  dist() %>% # count distance
+  as.matrix() %>% 
+  extract(1,) # extract distances 
+```
+
+Finally, we will pick the `k = 3` closest samples to our new sample:
+```{r knn-pick-neighbours}
+neighbours <-
+  distances %>%
+  order() %>% # return indexes of vector values sorted from min to max
+  extract(2:4) # 3 elements (k=3) indx = 1 is our new sample
+```
+
+Now we know the neighbors of our sample, thus we can continue with the majority 
+voting. We select the neighbors from the training data set and count their classes:
+```{r knn-class}
+classification <-
+  training_data %>% 
+  filter(row_number() %in% neighbours) %>% 
+  count(Species) %>%
+  arrange(desc(n)) %>% # sort by count, not necessary in this particular case
+  extract(1,1) # extract the class label
+```
+
+The neighbours are all from the `virginica` class, thus our `new_sample` is 
+classified as `virginica`. Since we know also the original label we can check,
+if the algorithm have the classification correct:
+```{r knn-check}
+if(new_sample$Species == classification){
+  print("Congratulations! You classified the sample correctly!")
+} else {
+  print("Incorrect!")
+}
+```
+And it is correct! Congratulations, you implemented your own k-Nearest Neighbours
+algorithm.
+
+> Try to change the distance method for computation of distance in `dist` function. How the results changed?
+
+> Try different number of `k`. What happens?
+
+# Introduction to `caret` package and ML workflow
+
+In previous parts you have learned how k-NN is working. But in reality you will 
+be using the existing implementation of the algorithm. It is because you will never 
+achieve the quality level of implementation compared to the widely used implementations. 
+And of course, you will have no time to implement algorithms by yourself for every 
+use case. Thus it is important to learn so-called Machine Learning workflow. In R we can 
+make use of `caret` package, which provides the interface for many ML algorithm
+implementations available in R. Plus it provides simplified way for conducting 
+proper ML experiment. 
+
+For the purpose of the demonstration we will be using the `iris` data set with just
+two classes. To do that we will create new data set `iris_caret` containing only
+classes `virginica` and `not virginica`:
+```{r caret-iris}
+iris_caret <- 
+  iris %>% 
+  mutate(Species = if_else(Species == "virginica", # is class virginica?
+                           "virginica", # yes, keep it
+                           "not virginica") # no, set the class to not virginica
+         )
+```
+
+When you are performing the experiment with small data sets it is usually good 
+approach to use cross-validation for estimating the method error. So for start 
+we create 10 folds (by default), to which we will split the data:
+```{r caret-folds}
+# create folds for error estimation
+folds <- createFolds(iris_caret$Species, list = FALSE)
+```
+
+The `folds` is the vector containing the number of corresponding fold to which 
+the sample belongs. Next, we need to tell `caret` "engine" how it will be training
+the algorithm. This is done by creating `trainControl` object containing our ML 
+experiment configuration. In this case we will use 10-fold cross-validation:
+```{r caret-traincontrol}
+# caret control structure
+fit_control <- trainControl(method = "cv", # train model using cross-validation
+                            number = 10) # use 10 folds
+```
+
+For storing the results we will create empty `data.frame` containing the results:
+```{r caret-results}
+results <- data.frame(fold = numeric(0),
+                      accuracy = numeric(0),
+                      precision = numeric(0),
+                      recall = numeric(0))
+```
+
+> Try to explore why using precision and recall is better than using only accuracy. 
+Search the term "confusion matrix" and try to understand the concept. 
+
+And now we can conduct our experiment:
+```{r caret-ml-flow}
+# for each fold
+for(n in 1:max(folds)) {
+  
+  indx <- which(folds == n) 
+  validation <- iris_caret[indx,] # use fold as a validation data set
+  training <- iris_caret[-indx,] # use rest of data for training 
+  
+  # fit model
+  fit <- train(Species ~ ., # predict Species using all (.) features
+               method = "knn",
+               data = training,
+               trControl = fit_control)
+  
+  pred <- predict(fit, newdata = validation) # predict the class for validation dataset
+  
+  result <- confusionMatrix(data = pred, 
+                            reference = as.factor(validation$Species), 
+                            positive = "virginica") # obtain the measurements
+  
+  # store results
+  results[n, ] <- c(n,
+                    result$overall["Accuracy"],
+                    result$byClass["Pos Pred Value"], # = Precision
+                    result$byClass["Sensitivity"]) # = Recall
+}
+```
+
+We first extract the training and testing data based on our initial call of `createFolds`.
+Then we train the model using the `train` function. The `train` function is the main
+function of the `caret` package, which is used to train the model. The function takes
+the formula, method, data and `trainControl` object as the arguments. Formula specifies
+the target variable and the features used for the prediction, method specifies 
+the algorithm (in our case k-NN), data is the training data set and `trainControl`
+is the object containing the configuration of the experiment. After the training
+the model is used to predict the class of the validation data set. The predictions
+are then used to compute the confusion matrix, which is used to compute the 
+measures of performance. We set the positive class to `virginica`, that means that 
+the `virginica` class is the class we are interested in and the precision and recall
+values are computed for that class. The results are stored in the `results` data frame. 
+
+You might notice that we are doing the cross-validation twice. In the outer loop
+and withing the train function. This is because the `train` function is using the
+cross-validation to estimate the error of the model and select the best model parameters
+using the training data only. The outer loop is used to estimate the error of the model
+on the validation data set.
+
+> Try to explore the `train` function. What are the arguments of the function? 
+What is the purpose of the `tuneGrid` argument?
+
+Now we can analyse the results. We can compute the mean value of the measures,
+which is the simplest approach to the analysis of the results. We can do that using:
+```{r caret-final-results}
+results %>% 
+  summarise(across(2:4, mean))
+```
+
+We can observe that our k-Nearest Neighbours algorithm performed very well in classification 
+of the `iris` data set. It achieved the accuracy of 0.97, precision of 0.95 and 
+recall of 0.98. That means that 97% of all samples were classified correctly, 
+95% of the samples classified as `virginica` were actually `virginica` and 98% 
+of all `virginica` samples were classified correctly. In real world scenario, 
+your work will end by providing the client with the final model trained on the 
+whole data set and with  the detailed insights on how the model performs on the data.
+This includes the measures of performance and how did you estimate them. 
+
+> Try to experiment with caret results from one validation round? Can you find the 
+final model produced for that round?
+
+# Assigment
+
+In today assignment we will be using [The HarvardX-MITx Person‐Course Dataset AY2013](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/26147). 
+You can read more about this data set in the corresponding link. Your task is to 
+predict if the student of course `HarvardX/CS50x/2012` will pass or fail the course
+(`grade` is 0 for failed and 1 for passed) based on `ndays_act` and `nchapters` 
+features using k-Nearest Neighbours (`knn`) classifier. To work on result prediction
+you should be using `caret` package. 
+
+## Instructions
+
+- Create R Notebook named `09_submission.Rmd`, in which you will 
+conduct the experiment.
+- Download the data set from the provided [link](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/26147).
+- Read data in R.
+- Prepare the data set for the classification task.
+  - Filter only students of the corresponding course `HarvardX/CS50x/2012`.
+  - Filter students who do not have the grade value (`grade = NA`) and 
+  focus on students who `explored` the course.
+  - Select target variable and features.
+  - Mutate target variable from 1/0 to pass/fail values.
+  - Replace missing values of features (`NA`s) with 0.
+- Load `caret`
+- Fix the seed for reproducibility
+- Split data set into 10-folds
+- Define the `trainControl` object
+  - Use 10-fold cross-validation for training.
+- Fit model using training data and evaluate them on validation fold.
+- Report the values of the Accuracy, Precision and Recall.
+
+## Submission
+Submit the task via Moodle in corresponding section. Your submission should contain
+one `.Rmd` file named `09_submission.Rmd`.

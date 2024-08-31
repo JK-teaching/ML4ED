@@ -1,0 +1,4 @@
+"0","neighbours <-"
+"0","  distances %>%"
+"0","  order() %>% # return indexes of vector values sorted from min to max"
+"0","  extract(2:4) # 3 elements (k=3) indx = 1 is our new sample"

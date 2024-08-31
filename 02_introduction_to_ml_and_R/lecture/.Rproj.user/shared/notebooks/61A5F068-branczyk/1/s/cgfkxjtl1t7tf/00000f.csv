@@ -1,0 +1,42 @@
+"0","read_transform_write <- function(input_path, output_path) {"
+"0","  "
+"0","  library(dplyr)"
+"0",""
+"0","  # Read data from the CSV file"
+"0","  data <- read.csv(input_path)"
+"0","  "
+"0","  # Select the desired columns from the data"
+"0","  result <- data [c(""user_id"", ""assignment_id"", ""start_time"", ""end_time"")]"
+"0","  "
+"0","  # Calculate elapsed time"
+"0","  result$elapsed_time <- round(as.numeric(difftime(result$end_time, result$start_time, units = ""secs"")))"
+"0","  "
+"0","  # Create message"
+"0","  result$message <- paste(""The user"", result$user_id, ""finished assignment"", result$assignment_id, ""in"", result$elapsed_time, ""seconds."")"
+"0","  "
+"0","  # Write the transformed data to a CSV file"
+"0","  write.csv(result, file = output_path, row.names = FALSE)"
+"0","  "
+"0","  # Display the first few rows of the transformed dataset"
+"0","  print(head(result))"
+"0","  "
+"0","  # Successful execution"
+"0","  return(0)"
+"0",""
+"0","}"
+"0",""
+"0","read_transform_write(""assigment_data.csv"", ""task_1.csv"")"
+"2","
+Attaching package: ‘dplyr’
+
+"
+"2","The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+"
+"2","The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+"

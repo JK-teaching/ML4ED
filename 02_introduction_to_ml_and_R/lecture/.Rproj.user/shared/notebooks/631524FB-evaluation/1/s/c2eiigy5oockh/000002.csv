@@ -1,0 +1,4 @@
+"0","```r
+read_transform_write_templ(\"assigment_data.csv\",\"assigment_data_result.csv\")
+read_transform_write_templ(\"evaluation_data.csv\",\"evaluation_data_result.csv\")
+```"

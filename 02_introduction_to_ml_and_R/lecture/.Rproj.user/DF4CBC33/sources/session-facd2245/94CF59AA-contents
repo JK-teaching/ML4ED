@@ -1,0 +1,79 @@
+```{r}
+read_transform_write <- function(input_path, output_path) {
+  
+  library(dplyr)
+
+  # Read data from the CSV file
+  data <- read.csv(input_path)
+  
+  # Select the desired columns from the data
+  # JK: I would remove the space before [
+  result <- data [c("user_id", "assignment_id", "start_time", "end_time")]
+  
+  # Calculate elapsed time
+  result$elapsed_time <- round(as.numeric(difftime(result$end_time, result$start_time, units = "secs")))
+  
+  # Create message
+  result$message <- paste("The user", result$user_id, "finished assignment", result$assignment_id, "in", result$elapsed_time, "seconds.")
+  
+  # Write the transformed data to a CSV file
+  write.csv(result, file = output_path, row.names = FALSE)
+  
+  # Display the first few rows of the transformed dataset
+  # JK: your code should return first five rows, your code produces 6
+  print(head(result))
+  # JK: correct is print(head(result, 5))
+  
+  # Successful execution
+  # JK: return is not necessary R functions returns last value
+  return(0)
+
+}
+
+read_transform_write("assigment_data.csv", "task_1.csv")
+
+plot_histogram <- function(df, col, bins) {
+  # Check if column exists in data frame
+  # JK: include also check for column type is.numeric(df[[col]])
+  if(!(col %in% names(df))) {
+    stop("Column not found in data frame.")
+  }
+
+  # Plot histogram
+  hist_data <- df[[col]]
+  hist(hist_data, main = paste("Histogram of column", col), xlab = col, col = "azure3", breaks = bins)
+}
+
+df <- read.csv("./assigment_data.csv")
+
+plot_histogram(df, "attempt_count", 3)
+
+```
+
+# Comments
+
+## General
+- comments in code starts with # JK:
+- very good work!
+- I would recommend splitting code into multiple chunks to make it more readable
+- in general importing libraries should be at the start of chunk, not in the middle of the function
+- in general I would recommend to format code to have at maximum 80 chars per line - it will improve reading the code
+
+## read_transform_write
+
+- the `library(dplyr)` is not used in the function, so it can be removed
+- the use of `dplyr` does not make any sense since you are not using it in the function
+- I appreciate the use of `row.names = FALSE` in write.csv
+- your code should return first five rows, your code produces 6
+- return is not necessary R functions returns last value, and it should be avoided
+
+## plot_histogram
+
+- you should also check if the column is numeric since we are focusing on producing histogram
+
+# Final assessment
+
+- code is working: 30/30
+- code is well written: 23/30 (the space before [, more than 80, `return`)
+- code is producing correct results: 30/40 (mistake in `head`, missing check for numeric column in `plot_histogram`)
+- total: 83/100 PASSED

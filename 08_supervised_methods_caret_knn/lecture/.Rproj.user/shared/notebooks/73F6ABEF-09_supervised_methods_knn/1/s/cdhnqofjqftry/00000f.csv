@@ -1,0 +1,6 @@
+"0","classification <-"
+"0","  training_data %>% "
+"0","  filter(row_number() %in% neighbours) %>% "
+"0","  count(Species) %>%"
+"0","  arrange(desc(n)) %>% # sort by count, not necessary in this particular case"
+"0","  extract(1,1) # extract the class label"

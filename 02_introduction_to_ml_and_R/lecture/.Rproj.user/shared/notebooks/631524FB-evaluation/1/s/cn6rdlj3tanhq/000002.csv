@@ -1,0 +1,19 @@
+"0","```r
+source(\"~/Desktop/HU Berlin/teaching/machine_learning_for_education/02_R_and_R_Studio/submissions/ta/read_transform_write.R\")
+
+tmpl_solution <- read.csv(\"assigment_data_result.csv\")
+
+tmp <- tempfile(fileext = \".csv\")
+do.call(\"read_transform_write\", list(\"assigment_data.csv\", tmp))
+sol <- read.csv(tmp)
+
+dim(sol)
+dim(tmpl_solution)
+
+head(sol)
+head(tmpl_solution)
+
+source(\"~/Desktop/HU Berlin/teaching/machine_learning_for_education/02_R_and_R_Studio/submissions/ta/plot_histogram.R\")
+plot_histogram(assigment_data, \"attempt_count\", 2)
+
+```"

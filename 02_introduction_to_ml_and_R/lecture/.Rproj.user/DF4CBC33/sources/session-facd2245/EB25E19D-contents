@@ -1,0 +1,107 @@
+---
+title: "First submission by HeXinyu"
+output: html_document
+date: "2024-04-28"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+1.  Create function `read_transform_write`:
+
+```{r}
+read_transform_write <- function(input_path, output_path){
+  input <- read.csv(input_path)
+  # JK: you do not need to create new data.frame, you can just select the required
+  #     columns and assign them to the result: result <- data[c("user_id", "assignment_id", "start_time", "end_time")]
+  result <- data.frame(input["user_id"],
+                       input["assignment_id"],
+                       input["start_time"],
+                       input["end_time"])
+  # JK: you do not need to convert the time to double, you can just substract the POSIXct values
+  result["elapsed_time"] <- round(as.double(as.POSIXct(result[["end_time"]]) - as.POSIXct(result[["start_time"]])))
+  result["message"] <- paste("The user", result[["user_id"]], "finished assignment", result[["assignment_id"]], "in", result[["elapsed_time"]], "seconds.")
+    
+  write.csv(result, output_path)
+  
+  # JK: you should be using the head function to print the first 5 rows, using the 
+  # print with the selecting the rows and columns is not the best practice - imagine
+  # that you will have 30 columns in data.frame
+  # functions should provide you with more general functionality, not with the specific
+  print(result[1:5, 1:6])
+  # JK: return is not necessary R functions returns last value
+  return(0)
+}
+```
+
+2.  Call the function `read_transform_write` with the arguments
+    `assigment_data.csv` and `task_1.csv"`. Please, note that path might
+    need to be changed based on the location of files and your system.
+
+```{r}
+read_transform_write("./assigment_data.csv", "./task_1.csv")
+
+```
+
+3.  Create function `plot_histogram` which:
+
+-   takes three arguments `df` data.frame, `col` string, `bins` number
+-   extracts the data from `df` column `col` and plots the histogram
+    with corresponding number of `bins`
+    -   histogram should have the title: `Histogram of column <col>`
+    -   the bars should be `azure3` color
+    -   the legend for the x axis should be the name of the column `col`
+-   make sure that the histogram function is working only for columns
+    where it makes sense, else it should throw an error
+-   Hints:
+    -   to throw an error use function `stop`
+
+```{r}
+plot_histogram <- function(df, col, bins){
+  # JK: the condition is incorrect it takes the first item in the column col and checks if it is NA,
+  #     you should be checking if the column is numeric and the whole column not just the first element
+  if(is.na(df[[col]][0:1])){
+    stop("col is not valided for df")
+  }
+  
+  hist(df[[col]],
+       main=paste("Histogram of column", col),
+       xlab=col,
+       col="azure3",
+       breaks=bins) #breaks means bins
+}
+```
+
+4.  Call function `plot_histogram` with data.frame `df` loaded from
+    `assigment_data.csv` and `col` set to `attempt_count` with `bins`
+    set to `3`.
+
+```{r}
+df <- read.csv('./assigment_data.csv')
+
+plot_histogram(df, "attempt_count", 3)
+
+```
+# Comments
+
+## General
+- comments in code starts with # JK:
+- more comments is needed in the code (think of your future you, who will read the code in 6 months)
+
+## read_transform_write
+
+- you can use also `data[c("user_id", "assignment_id", "start_time", "end_time")]`, because you are selecting columns of the data.frame
+- you do not need to convert the time to double, POSIXct values can be subtracted and produce difference in seconds
+- use `head` function to print the first 5 rows not `print` with selecting the rows and columns
+- return is not necessary R functions returns last value, and it should be avoided
+
+## plot_histogram
+
+- condition is not working properly, you should be checking if the column is numeric and the whole column not just the first element
+
+# Final assessment
+
+- code is working: 30/30
+- code is well written: 0/30 (missing comments, creation of new data.frame instead of filtering the `input` `data.frame`, `double` conversion, `return`, `print` with selecting the rows and columns)
+- code is producing correct results: 40/40 
+- total: 70/100 PASSED

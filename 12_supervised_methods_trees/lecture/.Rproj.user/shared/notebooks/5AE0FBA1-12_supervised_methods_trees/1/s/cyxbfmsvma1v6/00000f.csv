@@ -1,0 +1,8 @@
+"0","# use function from caret package"
+"0","train_index <- createDataPartition(titanic_data$Survived, # over the class"
+"0","                                   p = 0.8, # do 80/20 split"
+"0","                                   list = FALSE, # return vector"
+"0","                                   times = 1) # create only 1 split"
+"0",""
+"0","train_data <- titanic_data[train_index, ]"
+"0","test_data <- titanic_data[-train_index, ]"

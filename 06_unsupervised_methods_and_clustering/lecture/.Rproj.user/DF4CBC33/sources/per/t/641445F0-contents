@@ -1,0 +1,96 @@
+# **Task 1 - Introduction to R & RStudio** 
+
+1.  Create function `read_transform_write` which:
+
+    ```{r}
+    # function takes two arguments: input_path and output_path strings
+    # input is csv file
+    # reads the file in the input_path
+    read_transform_write <- function(input_path, output_path) {
+      # read csv and select required columns, put em in result df:
+      # JK: split data reading and processing into two steps, this improves readability
+      #     and makes it easier to debug
+      result <- read.csv(input_path)[c("user_id", "assignment_id", "start_time",    "end_time")]
+      
+      # Calculate elapsed_time and round it up to whole num
+      result$elapsed_time <- round(as.POSIXct(result$end_time) - as.POSIXct(result$start_time))
+      
+      # create message column
+      result$message <- paste0("The user ", result$user_id, " finished assignment ",   result$assignment_id, " in ", result$elapsed_time, " seconds.")
+      
+      # Write the result to a new CSV file
+      write.csv(result, file = output_path, row.names = FALSE)
+      
+      # Print first 5 rows
+      print(head(result, 5))
+      
+      # Return 0 when finished
+      # JK: return is not necessary R functions returns last value
+      return(0)
+    }
+    ```
+
+2.  Call the function `read_transform_write` with the arguments `assigment_data.csv` and `task_1.csv"`. Please, note that path might need to be changed based on the location of files and your system.
+
+    ```{r}
+    #Call the function read_transform_write with the arguments assigment_data.csv and task_1.csv"
+    read_transform_write("assigment_data.csv", "task_1.csv")
+    ```
+
+3.  Create function `plot_histogram` which:
+
+```{r}
+# Create function plot_histogram:
+plot_histogram <- function(df, col, bins) {
+  # Checking the existance of th column in df:
+  if (!(col %in% names(df))) {
+    stop("Column does not exist in the dataframe.")
+  }
+  
+  # Check if the column is numeric
+  if (!is.numeric(df[[col]])) {
+    stop("Column is not numeric, thereofore no Histogram :(.")
+  }
+  
+  # Now plot the histogram:
+  # JK: missing breaks = bins in hist function, because of it the bins argument is not used
+  #     and your function produces incorrect result
+  hist(df[[col]], 
+       main = paste("Histogram of column", col),
+       col = "azure3", 
+       xlab = col)
+}
+```
+
+4.  Call function `plot_histogram` with data.frame `df` loaded from `assigment_data.csv` and `col` set to `attempt_count` with `bins` set to `3`.
+
+```{r}
+#data.frame df loaded from assigment_data.csv
+df <- read.csv("assigment_data.csv")
+
+#calling the function
+plot_histogram(df, "attempt_count", 3)
+```
+# Comments
+
+## General
+- comments in code starts with # JK:
+- good work
+- in general I would recommend to format code to have at maximum 80 chars per line - it will improve reading the code
+
+## read_transform_write
+
+- reading and manipulation of the data in one step is never good idea, it is better to split it into two steps - it improves readability and makes it easier to debug
+- I appreciate the use of `row.names = FALSE` in write.csv
+- return is not necessary R functions returns last value, and it should be avoided
+
+## plot_histogram
+
+- your function does not work correctly, because you are missing `breaks = bins` in `hist` function
+
+# Final assessment
+
+- code is working: 30/30
+- code is well written: 23/30 (`return`, split of reading and processing data in `read_transform_write`)
+- code is producing correct results: 20/40 (histogram is incorrect, bins argument is not used)
+- total: 73/100 PASSED

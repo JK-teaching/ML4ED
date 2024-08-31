@@ -1,0 +1,9 @@
+"0","```r
+    hist(df[[col]], breaks = bins,
+         main = paste0(\"Histogram of column \",col),
+         col = \"azure3\",
+         xlab = col)
+
+```"
+"1","Error in df[[col]] : object of type 'closure' is not subsettable
+"
