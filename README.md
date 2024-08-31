@@ -6,9 +6,9 @@ In recent years machine learning has started to influence all aspects of human l
 ## Schedule
 Course is intended 14 weeks semester. Half of the lectures are given by external lecturers to keep in touch with the latest trends in the education applied machine learning research. Second half of the lectures contains 30-45 mins theoretical introduction and rest of the lecture is focusing on practicing the gained knowledge. Each practical part comes with the assignment.
 
---------------------------------------------------------------------------------------------------------
+
 |Week | Topic                                                                                          |                                                 
---------------------------------------------------------------------------------------------------------
+|-----|------------------------------------------------------------------------------------------------|
 |01   | Introduction                                                                                   |
 |02   | Introduction to Machine Learning in Education; R & RStudio                                     |
 |03   | External lecture 1                                                                             |
@@ -23,7 +23,6 @@ Course is intended 14 weeks semester. Half of the lectures are given by external
 |12   | Supervised methods - Decision trees & Ensemble methods; Decision trees & Random forest         |
 |13   | Essay writing (consultation hour)                                                              |
 |14   | Essay writing (consultation hour)                                                              |
---------------------------------------------------------------------------------------------------------
 
 Last year (SS 2024) external lectures: 
 
