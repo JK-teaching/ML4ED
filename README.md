@@ -24,7 +24,7 @@ Course is intended 14 weeks semester. Half of the lectures are given by external
 |13   | Essay writing (consultation hour)                                                              |
 |14   | Essay writing (consultation hour)                                                              |
 
-Last year (SS 2024) external lectures: 
+SS 2024 external lectures: 
 
 - Martin Hlosta: Virtual Reality analytics in Education
 - Benjamin Paaßen: Knowledge Assessment Models (Item response Theory, Performance Factors Analysis, and Bayesian Knowledge Tracing)
@@ -32,11 +32,15 @@ Last year (SS 2024) external lectures:
 - Fernando Marmolejo-Ramos: GAMLSS as a framework for statistical learning
 - Clara Schumacher: Pedagogical Perspectives on Learning Analytics
 
+SS 2025 external lectures: 
+
+- Vaclav Bayer: Predictive Learning Analytics in practice (case of OUAnalyse)
+
 ## Course requirements
 
-Students needs to pass at least 3 assignments, be presented on all external lectures and submit an essay on selected topic.
+Students needs to submit all assignments and have at least 50% of cummulative score, be presented on all external lectures and submit an essay on selected topic.
 
-Last year topics (SS 2024):
+SS 2024 topics:
 
 - Student success prediction
 - Automated essay scoring
@@ -49,6 +53,14 @@ Last year topics (SS 2024):
 - Regression models for educational research
 - Pedagogical Perspectives on Learning Analytics
 
+SS 2025 topics:
+
+- Student success prediction
+- GenAI in Education
+- Learning Analytics Dashboards
+- Privacy, ethics and bias of Machine Learning in Education
+- explainable Artificial Intelligence in Education
+- Synthetic data generation, interoperability and data sharing in Education
 
 ## License
 
