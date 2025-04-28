@@ -1,0 +1,892 @@
+---
+title: "Introduction to R & RStudio"
+output: 
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+runtime: shiny_prerendered
+---
+```{r setup, include=FALSE, context="server"}
+library(learnr)
+library(glue)
+library(dplyr)
+library(curl)
+library(jsonlite)
+library(openssl)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+tutorial_options(exercise.eval = FALSE)
+
+req <- curl_fetch_memory("https://api.ipify.org?format=json")
+
+HASH <- as.character(md5(fromJSON(rawToChar(req$content))[[1]]))
+
+event_recorder <- function(tutorial_id, 
+                           tutorial_version,
+                           user_id,
+                           event, 
+                           data) {
+  REPO <- "/Users/jakubkuzilek/Work/learnr"
+  
+  if (file.exists(glue("{REPO}/data_{HASH}.rds"))) {
+    t <- readRDS(glue("{REPO}/data_{HASH}.rds"))
+  } else {
+    t <- 
+      tibble(
+        time = .POSIXct(numeric(0)),
+        tutorial_id = character(),
+        tutorial_version = character(),
+        user_id = character(),
+        hash = character(),
+        event = character(),
+        data = list()
+      )
+  }
+  
+  t <- bind_rows(t, 
+                 tibble(
+                   time = Sys.time(),
+                   tutorial_id = tutorial_id,
+                   tutorial_version = tutorial_version,
+                   user_id = user_id,
+                   hash = HASH,
+                   event = event,
+                   data = list(data)
+                 )
+  )
+  
+  saveRDS(t, file = glue("{REPO}/data_{HASH}.rds"))
+}
+
+options(tutorial.event_recorder = event_recorder)
+```
+
+## Introduction
+
+At the end of this tutorial you will:
+
+- will know how to install R and RStudio
+- know how to use RStudio IDE and RMarkdown notebooks
+- understand R packages
+- have insights into the base R including:
+  - coding style
+  - coding basics
+  - data types
+  - variables and functions
+  - how to perform iteration using loops and apply function family
+  - read and write contents of file
+  - perform plotting using base R plotting functions
+  
+> For simplicity, we will not be using the R and RStudio installed on your computer. We will be
+using interactive excercises created using [learnr](https://cran.r-project.org/web/packages/learnr/index.html) package.
+
+> When you find `___` in the code chunk, it means that you need to fill in the missing part of the code.
+
+## Informed Consent
+This informed consent form is for a project investigating the interactions with the online
+tutorial platform created using `learnr` package.
+
+Name of Investigator: Dr. Jakub Kuzilek (jakub.kuzilek@hu-berlin.de)
+
+Name of Supervisor: Prof. Dr. Niels Pinkwart (pinkwart@hu-berlin.de)
+
+Name of Institution: Humboldt-Universität zu Berlin
+
+**You can download this informed consent in the Moodle course.**
+
+**The data from multiple tutorials will be collected and analysed.The informed consent is the same. For each session, you will get hash, which is the only unique identifier of your interactions with the material.** 
+
+### Information sheet
+
+#### Introduction of investigators
+Jakub Kuzilek is a researcher in fields of educational data mining and learning analytics since completion of his PhD in Artificial Intelligence and Biocybernetics at the Czech Technical University. In 2020 he joined Prof. Dr. Pinkwarts's research group and currently working on the project IMPACT.
+
+#### Purpose of the study
+The purpose of this study is to investigate the interactions with the online tutorial platform created using the `learnr` package. The data will be used to improve the design of the tutorial and to understand how users interact with the platform.
+
+#### Type of Research Intervention
+To support and investigate these learning and interaction processes interaction data will be used. In addition performance data of the students will be collected.
+
+#### Research Data Management
+The collected data will be anonymized and merged. The collected data are stored on the servers of the Computer and Media Service (CMS) of the Humboldt-Universität zu Berlin in Germany and the computers of the researchers. The data access is protected and regulated via a login and the access is restricted to the members of the project team. The personal data will be stored on secured location accessible via authenticated encrypted connection (VPN and SSH). The data are archived for another 10 years after the end of the project according to good scientific practice. The anonymized data may be published to enable Open Access for the general public. The participant may gain access to his/her recorded data, request a correction to his/her personal data record, or withdraw from the research study by contacting the Investigator:
+Jakub Kuzilek at jakub.kuzilek@hu-berlin.de
+
+In case of doubt as to the lawfulness of the processing of personal data, data subjects have the right to lodge a complaint with a Member State supervisory authority. The competent supervisory authority for Humboldt-Universität zu Berlin is Die Berliner Beauftragte für Datenschutz und Informationsfreiheit, Friedrichstraße 219, 10969 Berlin. The official data protection officer for Humboldt-Universität zu Berlin is: Gesine Hoffmann-Holland, Tel: +49 (30) 2093-20022, datenschutz@uv.hu-berlin.de.
+
+#### Voluntary participation
+Participation in this research project is entirely voluntary. It is up to the participant to decide whether or not to participate and there is no explicit or implicit obligation to participate. The participant has the possibility to cancel the participation at any time - even after the signing of the Informed Consent - without any disadvantages for the participant. 
+
+#### Documentation of the consent
+One copy of this document will be kept separately from the research records of this study using a pseudonym id in order to remove data after the request from the participant. The contact details of the participants will be deleted after the project is finished. To assure data deletion of the requesting subject a unique identifier in form of the email address and is required.
+
+### Certificate of consent
+- I agree to the collection of my pseudonymized interaction data in the course "Machine Learning for Education".
+- I agree to the collection of my pseudonymized perfomance data in the course "Machine Learning for Education".
+- I agree to have the anonymized interaction data and the anonymized performance data published under the Creative Commons Attribution 4.0 International (CC-BY) Licence (https://creativecommons.org/licenses/ by/4.0/) and so I allow it to be used by other people for other projects. 
+- I agree to have the interaction data, and the performance data archived for 10 years after finishing of the project.
+
+This hash will be used to identify you in the data from this lecture and to delete your data after the project is finished:
+**`r HASH`**
+
+Please, keep it for your records in case you change your mind and want to delete your data.
+
+```{r informed-consent, echo=FALSE}
+question_radio("I agree to the collection of my pseudonymized interaction data in the course 'Machine Learning for Education'.", 
+               correct = NULL, 
+               answer("yes", correct = TRUE),
+               answer("no", correct = TRUE)
+)
+```
+## Installing the R and RStudio
+
+R is both programming language and interactive environment for statistical computing. 
+That means after installation of the R distribution you can start coding/doing data
+analysis without any other software installed. It is open-source implementation of
+language S developed in Bell Lab by John Chambers in 1975. The R has been released 
+around 1993 by Robert Gentleman. RStudio IDE project started around 2010 and it is 
+developed since then. Posit (RStudio) Co. takes care about the development and also
+it is one of the contributor to the R community.
+
+### Installing R
+
+To install R you need to visit [CRAN (Comprehensive R Archive Network)](https://cran.r-project.org/), 
+which makes available all versions of R and its packages. There exists distributions 
+for [Linux](https://cran.r-project.org/bin/linux/), [macOs](https://cran.r-project.org/bin/macosx/) 
+and [Windows](https://cran.r-project.org/bin/windows/).
+
+### Installing RStudio
+
+After you install the R you can install the [RStudio Desktop](https://posit.co/download/rstudio-desktop/),
+which provides the nice IDE for R. 
+
+### Using R, RStudio & R notebooks
+
+When you start the RStudio, you will enter the main screen of the IDE. The bottom left 
+tab contains started instance of the R interactive console. On the right side there 
+are on top several tabs with the information about the Environment variables,
+Command History and other tabs. At the bottom there is file browser tab, which will be 
+the most important now.
+
+### Using R interactive environment
+
+As it has been said R is also interactive programming environment. That means you
+can start typing the commands in the console at the bottom left tab. We will speak
+about the commands and use of R in next part. For now, two not so obvious commands:
+`?` and `??`, which in combination with name of the function will provide you with the
+manual for that function. Try it now (we will also test the learnr interactive environment):
+
+```{r help-exercise, exercise=TRUE}
+___length
+```
+
+### Using R scripts
+
+R does a lot more than just interactive programming. It is also a full-fledged programming
+language. You can write scripts and functions. In our case R Script and R Notebook file typesare of most
+importance. R Script is textual file ending with `.R` containing executable commands and/or
+function definitions. R Notebook provides the "Jupyter" like functionality for R.
+The `.R` files needs to be "sourced" into the R via `source` function to be able to 
+execute code in them. 
+
+### R notebooks
+
+As mentioned before R Notebook provides "Jupyter" like functionality to RStudio IDE. This
+is very handy especially in case when one performs data analysis, which takes lot of time.
+The R Notebooks can be structured as a document using RMarkdown mutation of Markdown language. 
+In addition to the text, you can insert code chunks containing parts of your analysis.
+Data is share between chunks of the document so you can reuse variables you computed earlier in 
+your document. When you first try to start R notebook on fresh installed RStudio
+the message asking you about installing additional packages pop-up.
+
+### Recommended coding style
+
+The recommended coding style for our lectures is the one developed by Hadley Wickham and
+it is called [tidyverse style guide](https://style.tidyverse.org/index.html). In 
+principle try to use lower_snake_case for your variable naming, `"` for string quoting,
+and `<-` for variable assignment instead of `=`. The arrow is "special" for R, 
+but is established well in the language.
+
+## R packages \& CRAN
+
+R itself is very powerful for data analysis and statistical testing, you would be 
+surprised how much you can do without any extension. However, over the years the 
+mature and well formalized system of packages evolved to support the users with 
+additional functions. The R use package system, which is maintained by group of developers.
+It guarantees the users certain level of quality through the package review system
+on package submission and the system takes care about the dependencies between packages.
+All R packages are available on CRAN. In addition to CRAN there exists other repositories 
+such as Bioconductor, which are "clones" of CRAN and provides additional packages
+for certain research fields. You can also use packages available for example on GitHub, but 
+you need to be aware that those does not go through any review process and might 
+not have clear author/maintainer.
+
+In R you can install any package using:
+
+```{r install-packages, eval=FALSE}
+install.packages("<name-of-package>")
+```
+
+If you want to install more packages at once:
+
+```{r install-many-packages, eval=FALSE}
+install.packages(c("<name-of-package-1>", "<name-of-package-2>", "<name-of-package-3>", "<name-of-package-4>"))
+```
+
+```{r dplyr-setup, echo=FALSE}
+chooseCRANmirror(ind = 38)
+```
+
+Try to install the package `dplyr` (when you succeed you will see the information about saving the data):
+```{r dplyr-exercise, exercise=TRUE, exercise.setup = "dplyr-setup"}
+# Install package dplyr
+install.packages("___")
+```
+
+To list all packages installed in your computer just run following command:
+```{r list-packages-exercise, exercise=TRUE}
+# Try to list all installed packages within your distribution of R
+installed.packages()
+```
+
+To use installed package in the R environment you need to call `library` function to 
+load the package.
+
+```{r, eval=FALSE}
+library(<name-of-package>)
+```
+
+## Basics of R programming
+
+You can use R as any other programming language for performing basic math operations. 
+Try to add two numbers:
+
+```{r addition, exercise=TRUE}
+___ + ___
+```
+
+You might notice that the result is produced on line starting with `[1]`. This
+is the way how the R is telling you the index of the first item on line. In such a 
+way the analysis of vectorized results is much simpler. Check this behaviour in the 
+following example:
+
+```{r vector, exercise=TRUE}
+1 : 100
+```
+
+For more details about the basic operations in R you can check the for example [A Short Introduction to R Programming](https://bookdown.org/manishpatwal/bookdown-demo/basic-operations-in-r.html).
+
+## Data types
+
+In R there are several data types, which are completely natural to any other programming
+language. To explore what type is the value or variable you can use `class()` function.
+The numeric values can be stored as:
+
+```{r numerics, eval = FALSE}
+# integer
+1L
+
+# double ~ numeric
+1
+
+1.0
+
+# complex
+2+3i
+```
+
+The numeric type is default for the numerical values. Characters and strings are represented by data type
+`character` and you can use `'` or `"` quotes for defining them:
+
+```{r strings, eval = FALSE}
+"this_is_string" # recommended
+'this_is_other_string'
+```
+
+Try to create a string containing `"` inside it. There are two possible ways (one involving `\` and the second involving `'`):
+```{r string-quotes, exercise=TRUE}
+___A string with ___" inside it___
+```
+
+Logical values are then expressed using:
+
+```{r logical, eval = FALSE}
+TRUE # recommended
+FALSE # recommended
+# or
+T
+F
+```
+
+The final data types we will be speaking about are dates and times. Dates are represented
+as number of days between the date and 1970-01-01. To create date from the string
+you can use function `as.Date()`. When one needs to handle time the most appropriate 
+way is to use POSIX classes, which stores the datetime as list of its components
+- hour, min, sec, mon,etc. Let us create some dates and datetimes:
+
+```{r dates, exercise=TRUE}
+as.Date("___-___-___")
+
+as.POSIXct("___-___-___ ___:___:___")
+```
+
+## Data structures
+
+### Vector
+Since R is oriented on data analysis and manipulation it comes naturally with several
+data structures. The simplest type is a vector containing values of the same type. 
+
+To create an empty vector you can use function `vector`. Try it now: 
+```{r vectors, exercise=TRUE}
+# create empty vector of numbers
+___("numeric", 4)
+```
+
+For creating vector of values you can use several different ways:
+1. `seq()` function
+2. `c()` function
+3. `rep()` function
+4. `:` operator
+
+Try  to create vector of values from 1 to 10 using `seq()` function:
+```{r seq-function, exercise=TRUE}
+seq(___, ___, ___) # from, to, by
+```
+
+The same vector can be created using the `:` operator. Try it now:
+```{r colon-function, exercise=TRUE}
+___ : ___ : ___
+```
+
+The `rep()` function is used for repeating the values in the vector:
+```{r rep-function, eval=FALSE}
+rep(1:3, times = 3) # repeat the whole vector 3 times
+```
+
+And finally the `c()` function is used for creating vector of specific values:
+```{r c-function, eval=FALSE}
+c(1, 4, 5, 7)
+```
+
+### Matrix and array
+
+The "extensions" of vector to more dimensions are matrix (2D):
+
+```{r matrix}
+matrix(1 : 10, nrow = 2, ncol = 5)
+```
+
+And array (>2D):
+```{r array}
+array(1 : 12, dim = c(2, 2, 3))
+```
+
+Create the matrix of 4 rows and 5 columns with values from 1 to 20:
+```{r matrix-exercise, exercise=TRUE}
+matrix(___ : ___, ___ = 2)
+```
+
+### List
+
+In addition to listed previously the `list` data structure exist. It can store values
+of different data types:
+
+```{r list}
+list(1, 2, "Hello", c(1, 2))
+```
+
+The list print out is specific at first list index is printed with `[[1]]` and then 
+the corresponding item from the list is printed out using standardized print output. 
+
+### Data frame
+Finally, to work with tabular data the `data.frame` data structure exists. On background
+it works as a list of lists with specific requirements on same number of items in
+each sub-list:
+
+```{r dataframe}
+data.frame(first_col = c(1, 2, 3), second_col = c("a", "b", "c"))
+```
+
+The `data.frame` requires you to name each column of the data by name so it can be 
+distinguished from other columns.
+
+### Factors 
+
+Last but not least is special data structure for categorical variables called `factor`.
+It is special kind of vector, which works with the "labelled" character values. It 
+provides faster processing of the categorical data and it can also check the ordering for
+ordinal categorical variables. Let us see examples:
+
+```{r factors, eval=FALSE}
+factor(c("dog", "cat", "dog", "dog", "cat"))
+
+factor(c("A", "B", "D"), levels=c("A", "B", "C", "D"), ordered = TRUE)
+```
+
+Create `factor` with values `"A", "B", "E"` but levels `"A", "B", "C", "D"` and 
+observe the result:
+```{r factor-exercise, exercise=TRUE}
+factor(c(___), levels=c(___), ordered = TRUE)
+```
+
+## Type/structure conversion
+
+For converting types or structures to another type you can use commands starting with `as.`:
+
+```{r conversion, eval=FALSE}
+as.character(1)
+
+as.numeric("1")
+
+as.list(seq(1, 10, 2))
+
+as.vector(factor(c("A", "B", "D")))
+
+as.numeric(factor(c("A", "B", "D")))
+```
+
+You can notice that factor can be converted in two ways - as a character/string vector
+or numeric vector. The second one contains the underlying level numeric values.
+
+Try to convert the factor `"A", "B", "D"` to character and numeric vector:
+```{r conversion-exercise, exercise=TRUE}
+as.___(factor(c(___)))
+```
+
+## Objects
+
+### Variables
+Now that we know the basic of values and data structures we can make use of objects, 
+which is basically name upon which call the stored data are accessible. To assign data 
+to object use `<-` or `=`: 
+
+```{r objects}
+x <- 1 # assign numeric value to object x
+
+y = 2 # assign numeric value to object y
+
+die <- 1 : 6 # assign vector to object die
+```
+
+Please, note that the `=` sign for value assignment is not recommended way. The reason
+is simple it has not been in the original specification and it has been added later thus
+standard syntax is biased towards preferring the arrow.
+
+You can work with the objects like with the values. Try to divide the variable `die` by `2`:
+```{r object-operations-setup}
+die <- 1 : 6 # assign vector to object die
+```
+
+```{r object-operations, exercise=TRUE, exercise.setup = "object-operations-setup"}
+die ___ ___
+```
+
+In addition to the basic operations you can also use the `%*%` and `%o%` operators for inner and outer multiplication
+of two vectors. Try to use them on the `die` object:
+```{r object-operations-2, exercise=TRUE, exercise.setup = "object-operations-setup"}
+die ___ die 
+```
+
+### Named vectors, list and data.frames
+Vector and list items can be named. This can be done via `names` function. Name the 
+elements of the vector `die`. The names should be `"one", "two", "three", "four", "five", "six"`:
+
+```{r named-vectors, exercise=TRUE, exercise.setup = "object-operations-setup"}
+names(die) <- c(___)
+```
+
+## Accessing items in structures
+
+### Numerical indexing 
+
+When dealing with vectors, matrices and others structures it is crucial to understand how to access the
+individual items of corresponding structure. R provides multiple options to access the items.
+At first, you can use a numeric index. To extract one single item, use `[]` brackets with the index of the item you want to extract:
+```{r numeric-indexing-single}
+die[1]
+```
+To extract multiple items, you can use a vector of indices:
+```{r numeric-indexing-multiple}
+die[1 : 3]
+```
+Or you can use a vector of indices to extract non-consecutive items:
+```{r numeric-indexing-multiple-2}
+die[c(1, 3, 6)]
+```
+
+When dealing with matrices you can use the same indexing, but you need to specify the row and column index.
+```{r matrix-indexing}
+(example_matrix <- matrix(1 : 6, nrow = 2, ncol = 3))
+```
+The outer brackets `()` are used for forcing R to print expression result in the console.
+Now you can access the items in the matrix using the row and column index:
+```{r matrix-indexing-2}
+example_matrix[1, 2]
+```
+You can also extract the whole row or column:
+```{r matrix-indexing-3}
+example_matrix[1, ]
+```
+
+When dealing with lists and data.frames the indexing is "little bit" more tricky. 
+We will first define the list: 
+```{r list-indexing}
+(example_list <- list(1, 2, "Hello", c(1, 2)))
+```
+And now we will extract the items from the list. The first way is to use `[]` brackets,
+which extracts the "sub-list" from the list:
+```{r list-indexing-2}
+example_list[4]
+```
+To obtain the item(s) in the "sub-list" you need to use `[[ ]]` brackets:
+```{r list-indexing-3}
+example_list[[4]] 
+```
+
+And of course you can chain the indexing. You can extract 2nd item from the 4th "sub-list":
+```{r chain-indexing-setup, echo=FALSE}
+example_list <- list(1, 2, "Hello", c(1, 2))
+example_matrix <- matrix(1 : 6, nrow = 2, ncol = 3)
+```
+
+```{r chain-indexing}
+example_list[[4]][2] # returns 2nd item of the item in the 4th "sub-list"
+```
+
+Let us have some practice. We will be working with our `die` vector and `example_list`. 
+Try to first extract every second item from the `die` vector:
+```{r die-indexing-setup, echo=FALSE}
+die <- 1 : 6
+example_list <- list(1, 2, "Hello", c(1, 2))
+```
+
+```{r die-indexing, exercise=TRUE, exercise.setup = "chain-indexing-setup"}
+die[___]
+```
+
+Now try to extract the first and last item values from the `example_list`:
+```{r example-list-indexing, exercise=TRUE, exercise.setup = "chain-indexing-setup"}
+example_list[___]
+```
+
+### Logical indexing 
+Other option is to use logical indexing where you define logical "vector" of the 
+same dimension as the structure you would like to use for item extraction:
+
+```{r logical-indexing}
+logical_indx <- c(TRUE, FALSE, FALSE, TRUE, FALSE, FALSE)
+
+die[logical_indx]
+```
+
+Try to change logical_index to extract only the even numbers from the `die` vector:
+```{r logical-indexing-exercise, exercise=TRUE, exercise.setup = "chain-indexing-setup"}
+logical_indx <- c(___, ___, ___, ___, ___, ___)
+
+___[___]
+```
+
+### Named indexing
+If the structures you are using have named items then you can access items by their name. 
+For example, for a vector `die` with names `"one", "two", "three", "four", "five", "six"` you can access the items using the name.
+```{r name-indexing-setup, echo=FALSE}
+die <- 1:6
+names(die) <- c("one", "two", "three", "four", "five", "six")
+```
+
+There is difference between using `[]` and `[[]]` brackets. The first one returns the item and its name: 
+```{r name-indexing}
+die["one"]
+```
+
+And the second one returns the item itself:
+```{r name-indexing-1}
+die[["one"]]
+```
+
+We can use the column names for accessing values of `data.frame`. For example, if we have a data.frame `example_data_frame` with columns `first_col`, `second_col`, and `third_col`:
+```{r name-indexing-2}
+(example_data_frame <- data.frame(first_col = c(1, 2, 3), 
+                                 second_col = c("a", "b", "c"),
+                                 third_col = seq(5,15,5)
+                                 ))
+```
+
+We can access the columns using the column names:
+```{r name-indexing-3}
+example_data_frame[["first_col"]]
+```
+
+Try to experiment with single and double brackets:
+```{r name-indexing-4, exercise=TRUE}
+example_data_frame___"first_col"___ 
+```
+When we select multiple data.frame columns, we create a new data.frame:
+```{r name-indexing-5}
+example_data_frame[c("first_col","second_col")] 
+```
+
+### `$` "indexing"
+Finally, the `list` and `data.frame` items can be accessed via special `$` notation:
+```{r dollar-indexing-setup, echo=FALSE}
+example_data_frame <- data.frame(first_col = c(1, 2, 3), 
+                                 second_col = c("a", "b", "c"),
+                                 third_col = seq(5,15,5)
+                                 )
+```
+
+```{r dollar-indexing}
+example_data_frame$second_col
+```
+
+You can also use the `$` notation for adding the columns to the `data.frame`. Try it now:
+```{r add-column, exercise=TRUE, exercise.setup = "dollar-indexing-setup"}
+example_data_frame$___ <- 1
+
+# print out the result
+example_data_frame
+```
+
+## Conditional statements 
+
+For conditional execution of commands you can use `if` statements:
+```{r if}
+day <- TRUE
+if(day) {
+  print("It is day!")
+}
+```
+
+You can, of course, extend the statement with else part:
+```{r if-else}
+day <- FALSE
+if(day) {
+  print("It is day!")
+} else {
+  print("It is night!")
+}
+```
+
+And of course you can chain the if-else with else if blocks:
+
+```{r if-else-if}
+height <- 160
+
+if(height < 130) {
+  print("You are small!")
+} else if(height < 170) {
+  print("You are medium!")
+} else if(height < 200) {
+  print("You are large!")
+} else {
+  print("You are extra large!")
+}
+```
+
+## Loops
+
+To perform repetitive task one can employ loops. In R the loops are not efficiently
+implemented and they should be used in experimental setting, when the complexity 
+of the problem is too large or you need something to run indefinetely (while loop).
+
+### for loop
+
+The for loop iterate over the sequence of numbers defined in the `()`:
+```{r for-loop}
+for(m in 1:5) {
+  print(m)
+}
+```
+Try to adjust the for-loop to print out only numbers "1", "3", "8" and "15":
+```{r for-loop-exercise, exercise=TRUE}
+# with numeric vector
+for(m in ___) {
+  print(m)
+}
+```
+
+### while loop
+
+The while executes the code within its body until the condition in `()` is satisfied:
+
+```{r while-loop}
+counter <- 0
+
+while(counter <= 5) {
+  counter <- counter + 1
+  print(counter)
+}
+```
+
+## Functions
+
+To efficiently use and re-use your code you will be using functions. You already
+met several functions provided by base R such as `length`, `names` or `install.packages`. 
+But the real fun starts with own function. To create a function one needs to 
+specify its arguments in "header" and what should happen with them in function "body". 
+```{r function, eval=FALSE}
+<function-name> <- function(<arguments>) {
+  <function-body>
+}
+```
+Function automatically returns the result of the last expression. Let us show example.
+We first define the function `roll_dice`, which simulates rolling a die with `number_of_sides` sides `how_many_times` times:
+```{r simple-function}
+roll_dice <- function(number_of_sides, how_many_times){
+  sample(1:number_of_sides, how_many_times, replace = TRUE)
+}
+```
+
+Next we need to call the function with the arguments:
+```{r simple-function-execute}
+roll_dice(6, 20)
+```
+
+Sometimes it is handy to define default arguments values for the function call. To 
+do that you need to specify them in the function "header". Try specify the arguments 
+default values for the function `roll_dice_extended` and then call it without 
+specifying the arguments:
+```{r simple-function-default, exercise=TRUE}
+roll_dice_extended <- function(number_of_sides = ___,
+                               how_many_times = ___){
+  sample(1:number_of_sides, how_many_times, replace = TRUE)
+}
+
+___()
+```
+
+The R is checking the arguments of the function and assigns them according to their
+order in function call. However, you can specify the argument by using its name without
+necessity to specify all other arguments. So if our default values from previous 
+example are set to `number_of_sides = 6` and `how_many_times = 10`, you can call the function
+with only the second argument:
+```{r simple-function-default-execute-second-arg-setup, echo=FALSE}
+roll_dice_extended <- function(number_of_sides = 6,
+                               how_many_times = 10){
+  sample(1:number_of_sides, how_many_times, replace = TRUE)
+}
+```
+
+```{r simple-function-default-execute-second-arg}
+roll_dice_extended(how_many_times = 20)
+```
+
+## Apply family of functions
+As we said before the loops in R are inefficient. So how one can perform the efficient
+iteration operations over the vectors and lists. For that purpose the R have the
+system of "apply" functions family, which applies the selected function to the 
+defined object. In addition to better performance apply-functions also lead less 
+errors in the code. There exists multiple functions but for us the most important
+functions would be `lapply` (aka list-apply) and `sapply` (simplify-apply). The
+`lapply` function takes the list or vector of values and applies the selected function
+on each of them producing the list of results:
+```{r lapply}
+square <- function(number) {
+  number^2
+}
+
+lapply(seq(1,4,1), square)
+```
+
+The `lapply` is useful when the produced result is complex and the structure needs 
+to be stored in list. However, in the most cases one needs to perform simple
+operation and get simplified result in form of vector. And that is the point where 
+`sapply` comes in play:
+```{r sapply}
+sapply(seq(1,4,1), square)
+```
+There exist other functions from the family: `apply`, `tapply`, `vapply` and `mapply`, 
+but those are out of scope of this introduction.
+
+Try to use the function `sapply` to calculate the print the result squaring of the numeric vector. Try on vector 1 to 10:
+```{r sapply-exercise, exercise=TRUE}
+___ <- function(___) {
+  result <- ___^2
+  ___(result)
+}
+
+sapply(___, ___)
+```
+
+Notice that `sapply` returns the result anyway. That is the nature of the function, which
+automatically assigns the individual results to items of vector or list.
+
+## Reading and writing (csv) files
+R provides set of functions for writing and reading data into the environment. We will
+be using functions for `csv` files manipulation. To store data in file you can use
+function `write.csv`:
+```{r write.csv, eval=FALSE}
+write.csv(<data.frame>, "<file-name>")
+```
+
+It takes multiple arguments, but most of the time you need to specify the first (data) and
+the second one (path). And we can recover this stored dataset using `read.csv` function:
+```{r read.csv, eval=FALSE}
+<variable-name> <- read.csv("<file-name>")
+```
+
+## Base plotting
+The base R gives you the opportunity to visualise data you are working with. In our
+introduction we will be working with two base plots: scatter plot (`plot` function)
+and histogram (`hist` function).
+
+### scatter plot
+Scatter plot enables you to explore the dependencies between two features in your 
+dataset. Each sample of your data is represented as a point in two dimensional 
+plane with x and y values based on the selected features. We will use famouse `iris` dataset
+in our examples. We can plot relationship between Petal Length and Width features:
+```{r scatter-plot}
+plot(iris$Petal.Length, iris$Petal.Width)
+```
+
+The function takes as the first two arguments the vectors of values for x and 
+y axis and the plots them. Our `iris` dataset is stored as `data.frame` thus we 
+can access the values of Petal Length and Width using `$` notation, which extracts
+the vectors out of the `data.frame` structure. The plot function comes with additional
+arguments, which give you opportunity to style the plot. Let us extend our example by adding
+Some features such as labels and title. Try it now:
+```{r extended-scatter-plot, exercise=TRUE}
+plot(iris$Petal.Length, iris$Petal.Width, 
+     xlab = "___",
+     ylab = "___",
+     main = "___",
+     pch = 20)
+```
+
+The arguments changes the textutal information in the labels and adds title of the plot. With 
+the last argument we changed points from circle to dots (`pch` gives you the possibility
+to specify the plotting symbol).
+
+### Histogram
+Often it is necessary to explore the distribution (or its approximation) of one feature in 
+dataset. To do that histogram function comes in play:
+```{r histogram}
+hist(iris$Petal.Length)
+```
+
+The `hist` function produce the bar chart or histogram of values in the provided
+vector with x axis depicting the possible values and y axis showing their frequency
+in dataset. Again, we can adjust the produced figure by adding some labels and title:
+```{r extended-histogram, excercise=TRUE}
+hist(iris$Petal.Length,
+  main="___",
+  xlab="___",
+  col="darkblue",
+  freq=FALSE
+)
+```
+
+The produced histogram contains our specified label and title. We also changed
+the color of bars and instead of the frequency we decided to show relative frequency
+(aka density) of values (by setting `freq` argument to `false`).
+
+## Conclusion
+The base plotting concludes our introduction to R. Next comes the first assignment,
+which will available after of our seminar.
+
+Here we repeat the important information regarding your consent to the data collection. The following hash will be used to identify you in the data from this lecture and to delete your data after the project is finished:
+**`r HASH`**
+
+Please, keep it for your records in case you change your mind and want to delete your data.
+
+

@@ -1,0 +1,101 @@
+---
+title: "Machine Learning for Education"
+author: "Dr Jakub Kuzilek"
+format: 
+  beamer:
+    theme: "Pittsburgh"
+editor: source
+---
+
+## House rules
+
+-   Full names in Zoom
+-   Cameras on
+-   Microphones off
+-   Questions
+    -   raise hand (immediate response)
+    -   write in chat (at the end of the presentation)
+-   Missing in mandatory lecture &rarr; apology at least 24 hours in advance
+-   Problem &rarr; ask, write email, or contact me via Moodle
+
+## Learning objectives
+
+-   Know the basic concepts of machine learning
+-   Learn essentials of ![](https://www.r-project.org/Rlogo.png){width=5%} programming language
+-   Understand how to process and analyse (educational) data
+-   Gain knowledge of essentials of educational data mining and learning analytics
+
+## Course structure
+
+\begingroup
+\setlength{\LTleft}{0pt minus 500pt}
+\setlength{\LTright}{0pt minus 500pt}
+\fontsize{5pt}{7pt}\selectfont
+\addtolength{\tabcolsep}{-3pt}
+| Order | Date | Topic |
+|-----------------|-----------------|:--------------------------------------|
+| 1 | 15\. 04. 2025 | Introduction |
+| 2 | 22\. 04. 2025 | Introduction to Machine Learning in Education; Introduction to R |
+| 3 | 29\. 04. 2025 | **Vaclav Bayer, MSc (The Open University): Predictive Learning Analytics in practice (case of OUAnalyse)** |
+| 4 | \textcolor{red}{06. 05. 2025 14:00} | Machine Learning - tasks, model training, data, evaluation; Data manipulation in R - Tidyverse |
+| 5 | 13\. 05. 2025 | **Dr. Clara Schumacher (University of Potsdam): Pedagogical perspectives on Learning Analytics** |
+| 6 | 20\. 05. 2025 | Unsupervised methods; Clustering (kmeans) |
+| 7 | \textcolor{red}{27. 05. 2025 14:00} | **Associate Professor Carrie Demmans Epp, PhD (University of Alberta): Language Models and Predicting Human Reading Performance** |
+| 8 | 03\. 06. 2025 | dies academicus |
+| 9 | 10\. 06. 2025 | **Dr. Milos Kravcik (DFKI): Scalable mentoring support with LLM chatbot & AI-powered psychomotor training** |
+| 10 | 17\. 06. 2025 | Supervised methods; Caret & k-Nearest Neighbours |
+| 11 | 24\. 06. 2025 | **Dr. Niels Seidel (CATALPA, FernUniversität in Hagen): Adaptive Learning** |
+| 12 | 01\. 07. 2025 | Supervised methods; Naïve Bayes & Perceptron |
+| 13 | 08\. 07. 2025 | Supervised methods; Classification and Regression Tree, Random Forest |
+| 14 | 15\. 07. 2025 | Essay writing |
+\endgroup
+
+## Requirements
+
+1. Active participation in the external lectures
+2. Submission of all programming assignments
+3. Essay
+
+## Programming assignments
+
+- code is working (30 points)
+- code is using the best practices, is readable, and well commented (30 points)
+- code is producing correct results (40 points)
+- deadline: 2 weeks after the lecture
+
+\center PASS: > 50% of points from all assignments 
+
+## Essay
+
+- write an essay on selected topic
+- the topic will be available after the 5th lecture
+- each topic can be chosen by limited number of students
+- proper referencing
+- arguments needs to be supported by literature
+- use of genAI is allowed, but mistakes are yours
+- 1000 - 1500 words
+- deadline: 15th July 2025
+
+## Moodle
+
+- we will be using Moodle for seminars, tasks and communication
+- there will be an interactive component for each seminar
+- Informed Consent Management system
+
+## Course resources
+**Moodle** \
+
+https://moodlelab.hu-berlin.de/course/view.php?id=89 \
+Key: ML4ED25 \
+\
+**Zoom** \
+https://hu-berlin.zoom-x.de/j/64124702126?pwd=j2H6Tys3Ryn6S9iMIdrLpHiRjyCUjk.1 \
+\
+
+**Contact** \
+jakub.kuzilek@hu-berlin.de
+
+## Course resources
+
+\center ![](moodle.png){width=50%} \
+Key: ML4ED25

@@ -1,0 +1,163 @@
+---
+title: "Introduction to R & RStudio - assignment"
+output: 
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+runtime: shiny_prerendered
+---
+```{r setup, include=FALSE, context="server"}
+library(learnr)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+tutorial_options(exercise.eval = FALSE)
+```
+
+## Assigment
+In our first assignment we will be processing subset the ASSISTments dataset released
+by Professor Neil Heffernan focusing on school year 2012/2013 (the dataset file is in
+the zip). The ASSISTments is the online learning tool for deploying assignments with 
+associated hints and resources online for their students. It is used by most of the 
+Middle and High Schools in Worcester County, MA, USA.For us the data do not matter 
+that much since we are going to create two functions: first will read the data from file, 
+process them and outputs the results in other file; and the second will read the 
+original data and produce histogram of selected column.
+
+## I: read_transform_write
+
+### Function 
+Create function `read_transform_write`, which take one argument: `input`, which is a data.frame and returns it. Test the function call:
+```{r exercise-setup, echo=FALSE}
+input_data <- read.csv("data/assigment_data.csv")
+```
+
+```{r exercise-1, exercise=TRUE, exercise.setup = "exercise-setup"}
+___ <- ___(___){
+  ___
+}
+
+read_transform_write(input_data)
+```
+
+### Select
+Select the columns `user_id`,`assignment_id`,`start_time`,`end_time` and store them in new `data.frame` named `result`.
+Return the `result`:
+```{r exercise-2, exercise=TRUE, exercise.setup = "exercise-setup"}
+___ <- ___(___){
+  ___ <- ___[, c(___)]
+  ___
+}
+
+read_transform_write(input_data)
+```
+Hint: to delete column from `data.frame` you can assign `NULL` value to the corresponding column: `df$x <- NULL`
+
+### New columns
+Create new column `elapsed_time` in `result` containing time difference between `end_time` and `start_time`, round the difference to whole number; and column `message` in `result` containing string: `"The user <user_id> finished assignment <assignment_id> in <elapsed_time> seconds.`
+```{r exercise-3, exercise=TRUE, exercise.setup = "exercise-setup"}
+___ <- ___(___){
+  ___ <- ___[, c(___)]
+  ___["___"] <- ___(___(___,___))
+  ___$___ <- ___
+  ___
+}
+
+read_transform_write(input_data)
+```
+
+Hints: 
+
+  - it is possible to subtract two POSIXct values dt1-dt2 using `difftime` function, the result is in seconds
+  - check function `round` 
+  - for building the string you might search for the function `paste` or `paste0`
+    
+### Filter
+The function should return only first 5 rows of the `result` data.frame. Adjust the code:
+```{r exercise-4, exercise=TRUE, exercise.setup = "exercise-setup"}
+___ <- ___(___){
+  ___ <- ___[, c(___)]
+  ___["___"] <- ___
+  ___$___ <- ___
+  ___(___)
+}
+
+read_transform_write(input_data)
+```
+Hint: there exists functions for examining structure of `data.frame` such as `str`, `head`, `tail`
+
+## II: plot_histogram
+
+### Function
+Create function `plot_histogram`, which takes three arguments `df` data.frame, `col` string, `bins` number and returns `invisible(NULL)`:
+```{r histogram-1, exercise=TRUE, exercise.setup = "exercise-setup"}
+___ <- ___(___, ___, ___){
+  ___
+}
+
+plot_histogram(input_data, "attempt_count", 3)
+```
+
+### Check column
+Check that the `col` is a column in `df` and that it is numeric. If not, throw an error (you can test it with column names `attempt_count`, `type` and `non-existing-column`):
+```{r histogram-2, exercise=TRUE, exercise.setup = "exercise-setup"}
+___ <- ___(___, ___, ___) {
+  if(!(___ %in% ___(___))){
+    stop("Column does not exists")
+  }
+  if (!(___(___[[___]]))) {
+    stop("Wrong column, values must be numeric")
+  }
+  ___
+}
+
+plot_histogram(input_data, "attempt_count", 3)
+```
+Hints: 
+- you can throw error using `stop` function.
+- to get names of the data.frame columns use `colnames` function
+
+### Plot histogram
+Now it is time to plot the histogram. Use `hist` function to plot the histogram of the column `col` with number of `bins`:
+```{r histogram-3, exercise=TRUE, exercise.setup = "exercise-setup"}
+___ <- ___(___, ___, ___) {
+  if(!(___ %in% ___(___))){
+    stop("Column does not exists")
+  }
+  if (!(___(___[[___]]))) {
+    stop("Wrong column, values must be numeric")
+  }
+  ___(
+    ___ = ___[[___]],
+    ___ = ___
+  ) 
+}
+
+plot_histogram(input_data, "attempt_count", 3)
+```
+
+### Pretty histogram
+Finally, make the histogram pretty. Set the title of the histogram to `Histogram of column <col>`, set the color of the bars to `azure3` and set the x-axis label to the name of the column `col`:
+```{r histogram-4, exercise=TRUE, exercise.setup = "exercise-setup"}
+___ <- ___(___, ___, ___) {
+  if(!(___ %in% ___(___))){
+    stop("Column does not exists")
+  }
+  if (!(___(___[[___]]))) {
+    stop("Wrong column, values must be numeric")
+  }
+  ___(
+    ___ = ___[[___]],
+    ___ = ___,
+    ___ = ___,
+    ___ = ___,
+    ___ = ___
+  ) 
+}
+
+plot_histogram(input_data, "attempt_count", 3)
+```
+
+## Submission 
+**Now, you have the final result. Copy your code of `read_transform_write` and `plot_histogram` function and paste it 
+to the Moodlelab in the [first assignment](https://moodlelab.hu-berlin.de/mod/assign/view.php?id=11431).**
