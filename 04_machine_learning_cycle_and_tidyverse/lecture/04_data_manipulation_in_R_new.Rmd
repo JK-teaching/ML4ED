@@ -542,121 +542,335 @@ in tabular format where:
 - each observation (sample) own row
 - each value have own cell
 
+`tidyverse` provides the set of functions, which are designed to work with tidy data.
+In the following sections we will show the most important functions. Feature of the 
+`tidyverse` functions is that you do not need to put names of columns in quotes because
+of use the so-called `non-standard evaluation`. This means that the function will 
+evaluate the column names and will use them in the function call.
+
+### Iris dataset
+The `iris` data set is the most famous data set in the world. It contains 150 samples
+of iris flowers. Each sample is described by 4 features (sepal length, sepal width,
+petal length, petal width) and the species of the flower (setosa, versicolor, virginica).
+The data set is available in the base R. You can check the dataset bellow:
+
+```{r iris}
+iris
+```
+
 ### mutate
 `mutate` transforms the column values according to supplied formula and stores them
-either to the original or to new column. Let us show the examples on `iris` data set:
-```{r mutate}
+either to the original or to new column. In the first example adjust
+the column `Petal.Length` to be squared: 
+```{r mutate-example, exercise=TRUE}
+iris |>
+  ___(___ = ___)
+```
+
+```{r mutate-example-solution}
 iris %>% 
   mutate(Petal.Length = Petal.Length^2)
+```
 
-iris %>% 
+```{r mutate-example-check}
+lecture_grade_code()
+```
+
+Next, try to create new column `petal_area` containing the area of the petal calculated
+as `Petal.Length * Petal.Width`:
+
+```{r mutate-example-2, exercise=TRUE}
+iris |>
+  ___(___ = ___*___)
+```
+
+```{r mutate-example-2-solution}
+iris |> 
   mutate(petal_area = Petal.Length*Petal.Width)
 ```
 
-We can also do multiple operations at once:
-```{r mutate-2}
-iris %>% 
+```{r mutate-example-2-check}
+lecture_grade_code()
+```
+
+Finally, you can perform multiple "adjustments" in one `mutate` call. Try to 
+achieve the same as in the previous two examples using only one `mutate` call:
+```{r mutate-both-example, exercise=TRUE}
+iris |> 
+  mutate(___ = ___,
+         ___ = ___)
+```
+
+```{r mutate-both-example-solution}
+iris |> 
   mutate(Petal.Length = Petal.Length^2,
          petal_area = Petal.Length*Petal.Width)
 ```
 
+```{r mutate-both-example-check}
+lecture_grade_code()
+```
+
+Note, that in the last example the results of the first operation are used in the second
+operation. This is the so-called "lazy evaluation". Thus the results in our second
+example and the last one are different.
+
 ### select
-`select` selects the specified columns. You can also use it for column reordering. 
-And there exist multiple helper functions, which simplify the process. Let us do 
-some selection on the `iris` data set:
-```{r select}
-iris %>% 
+`select` function is used to select the columns from the input `data.frame`. 
+It is similar to the `select` statement in `SQL`. You can specify the columns
+using their names or using the column numbers. The function will return a new `data.frame`
+with the selected columns. Select the columns `Petal.Length` and `Species` from the `iris` data set:
+
+```{r select-by-name-example, exercise=TRUE}
+iris |>
+  ___(___, ___)
+```
+
+```{r select-by-name-example-solution}
+iris |> 
   select(Petal.Length, Species)
 ```
 
-We can also decide that we what to drop some columns using `-` sign:
-```{r select-2}
-iris %>% 
+```{r select-by-name-example-check}
+lecture_grade_code()
+```
+
+Another option to specify the columns is to use `:` operator. This operator
+is used to specify the range of columns. Select the columns `Petal.Length` to `Species`
+from the `iris` data set:
+```{r select-range-example, exercise=TRUE}
+iris |>
+  ___(___:___)
+```
+
+```{r select-range-example-solution}
+iris |> 
+  select(Petal.Length:Species)
+```
+
+```{r select-range-example-check}
+lecture_grade_code()
+```
+
+You can combine the `select` function with auxiliary functions, which help
+you to select the columns based on some expression. The most important ones are: 
+`starts_with`, `ends_with`, `contains`, `matches`, `everything`. Test the first auxiliary function
+`starts_with` on the `iris` data set. Select all columns starting with `Petal`:
+```{r select-starts-with-example, exercise=TRUE}
+iris |>
+  ___(___("___"))
+```
+
+```{r select-starts-with-example-solution}
+iris |> 
+  select(starts_with("Petal"))
+```
+
+```{r select-starts-with-example-check}
+lecture_grade_code()
+```
+
+Sometimes is useful to deselect the columns. This can be done using `-` sign. Remove
+column `Petal.Length` from the `iris` data set:
+```{r select-deselect-example, exercise=TRUE}
+iris |>
+  ___(-___)
+```
+
+```{r select-deselect-example-solution}
+iris |> 
   select(-Petal.Length)
 ```
 
-Finally, we would like to move Species column to be the first not last:
-```{r select-3}
-iris %>% 
+```{r select-deselect-example-check}
+lecture_grade_code()
+```
+
+The final use of the select function is to reorder the columns. This can be done
+in combination with `everything` function. Move the `Species` column to the first position:
+```{r select-reorder-example, exercise=TRUE}
+iris |>
+  ___(___, everything())
+```
+
+```{r select-reorder-example-solution}
+iris |> 
   select(Species, everything())
 ```
 
-> Try to explore what `everything` is doing and what are the other helper functions.
+```{r select-reorder-example-check}
+lecture_grade_code()
+```
 
 ### rename
 `rename` function renames the column and it is in principle shortcut for `mutate` followed
-by `select`. Let us show the example:
-```{r rename}
-iris %>% 
+by `select`. The use is similar to mutate function. Rename the column `Species` to `class`:
+```{r rename-example, exercise=TRUE}
+iris |>
+  ___(class = ___)
+```
+
+```{r rename-example-solution}
+iris |> 
   rename(class = Species)
 ```
 
-> Try to achieve same renaming with the combination of `mutate` and `select` functions.
+```{r rename-example-check}
+lecture_grade_code()
+```
 
 ### filter
-`filter` function subset the rows of the input `data.frame` it works similarly to 
-`where` clause in `SQL`. Let us try it: 
-```{r filter}
-iris %>% 
+Very often you will need to filter the data set based on some condition. That 
+means you want to select only several rows. The `filter` function is used
+for this purpose. It is similar to `where` clause in `SQL`. Filter the `iris` data
+set to keep only the rows with `Petal.Width` equal to `0.2`:
+
+```{r filter-example, exercise=TRUE}
+iris |>
+  ___(___ == ___)
+```
+
+```{r filter-example-solution}
+iris |> 
   filter(Petal.Width == 0.2)
 ```
 
-You can chain the conditions (which is equivalent to & operator):
-```{r filter-chain}
-iris %>% 
+```{r filter-example-check}
+lecture_grade_code()
+```
+
+If you need to filter the data set based on multiple conditions you can use
+`&` and `|` operators. In addition default is `&` operator. Thus you can  
+order the conditions using `,` to chain them using and-logic. Try to filter
+the `iris` data set to keep only the rows with `Petal.Width` equal to `0.2`
+and `Sepal.Length` greater than `4.5`:
+
+```{r filter-chain-example, exercise=TRUE}
+iris |>
+  ___(___ == ___, ___ > ___)
+```
+
+```{r filter-chain-example-solution}
+iris |> 
   filter(Petal.Width == 0.2, Sepal.Length > 4.5)
 ```
 
-> Try to filter out all setosa iris flowers with petal length less or equal to 1.4.
+```{r filter-chain-example-check}
+lecture_grade_code()
+```
 
 ### summarise
-For summary operation over the selected column(s) you can use `summarise` function. 
-For example:
-```{r summarise}
-iris %>% 
+Computing summary statistics is one of the most common tasks in data analysis. To
+achieve this you can use `summarise` function, which then computes the selected
+statistics over the selected column(s). Try to extract the `max`imum of the `Petal.Length`:
+
+```{r summarise-example, exercise=TRUE}
+iris |>
+  ___(max_petal_length = ___(___))
+```
+
+```{r summarise-example-solution}
+iris |> 
   summarise(max_petal_length = max(Petal.Length))
+```
+
+```{r summarise-example-check}
+lecture_grade_code()
 ```
 
 ### group_by
-If we need to take into account the categorical variables defining groups (aka class) in 
-our data we can use `group_by` function. For example:
-```{r group_by}
-iris %>% 
-  group_by(Species) %>% 
+In the previous example we computed the maximum of the `Petal.Length` over the whole
+data set. But we can also compute the maximum over the groups. The `group_by` function
+is used to group the data set by the selected column(s). The `summarise` function
+will then compute the statistics over the groups. The `group_by` function is similar
+to the `group by` clause in `SQL`. Try to compute the maximum of the `Petal.Length`
+for each `Species` in the `iris` data set:
+
+```{r group_by-example, exercise=TRUE}
+iris |>
+  group_by(___) |>
+  ___(max_petal_length = ___(___))
+```
+
+```{r group_by-example-solution}
+iris |> 
+  group_by(Species) |> 
   summarise(max_petal_length = max(Petal.Length))
 ```
 
-### Reshaping tables
+```{r group_by-example-check}
+lecture_grade_code()
+```
+
+## Reshaping data
 One of the difficult tasks for example in `SQL` is reshaping the data from long to 
 wide format (~ converting rows to columns and back). For that purpose there exists
-two functions within the `tidyverse` - `pivot_wider` and `pivot_longer`. To
-demonstrate their capabilities we will use "example" tables from the `tidyverse`. The first:
+two functions within the `tidyverse` - `pivot_wider` and `pivot_longer`.To
+demonstrate their capabilities we will use "example" tables from the `tidyverse`. 
+
+### pivot_longer
+
+Check the table `table4a` to see where the problem is:
 ```{r table4a}
 table4a
 ```
-This table clearly contains two columns, which represenst one variable - `year`. Thus
-it is viable to transform the table to include this variable using `pivot_longer`:
-```{r pivot-longer}
-table4a %>% 
-  pivot_longer(2:3, names_to = "year", values_to = "cases")
+
+This table clearly contains two columns, which represents number of cases conditioned by variable - `year`. 
+To make table tidy we need to transform it to have one column with the year and 
+one column with the number of cases. Try it now:
+```{r pivot-longer-example, exercise=TRUE}
+table4a |>
+  pivot_longer(___, # indexes of the columns to be transformed
+               names_to = "___", # name of the new column with the names of the columns
+               values_to = "___") # name of the new column with the values of the columns
 ```
 
-And the second example table:
+```{r pivot-longer-example-solution}
+table4a |>
+  pivot_longer(2:3, # indexes or column names of the columns to be transformed
+               names_to = "year", # name of the new column with the names of the columns
+               values_to = "cases") # name of the new column with the values of the columns
+```
+
+```{r pivot-longer-example-check}
+lecture_grade_code()
+```
+
+
+### pivot_wider
+
+In our second table `table2` we have the opposite problem. The table is in long format
+but it should be in wide format. The `type` column represents two columns with the values
+from the `count` column. 
 ```{r table2}
 table2
 ```
 
-Again this table has problem, but it is opposite to the previous one - the column
-`type` clearly represent two columns with values from column `count`. So we can transform
-the table using `pivot_wider`:
-```{r pivot-wider}
-table2 %>% 
-  pivot_wider(names_from = type, values_from = count)
+Use `pivot_wider` function to transform the table:
+```{r pivot-wider-example, exercise=TRUE}
+table2 |>
+  pivot_wider(names_from = ___, # name of the column with the names of the columns
+              values_from = ___) # name of the column with the values of the columns
 ```
 
-### Joining tables
-Sometimes you will need to join two `data.frame`s together. This usually involves
-some key column, which is shared by both data sets. Let us create two sample `tibbles` first:
+```{r pivot-wider-example-solution}
+table2 |>
+  pivot_wider(names_from = type, # name of the column with the names of the columns
+              values_from = count) # name of the column with the values of the columns
+```
+
+```{r pivot-wider-example-check}
+lecture_grade_code()
+```
+
+## Joining data
+Final part of the data manipulation is joining two tables together using the shared
+key column. The `tidyverse` provides the set of functions for `join`ing the tables.
+
+### Example data
+We will use two example tables `x` and `y` created using `tribble` function, which
+is part of the `tibble` package. It is used to create small tables in a readable
+way. The tables are created in the following way:
 ```{r join-tables-init}
 x <- tribble(
   ~key, ~val_x,
@@ -673,47 +887,101 @@ y <- tribble(
 )
 ```
 
-Note the way how we created them. We used function `tribble`, which is shortcut
-to transposed `tibble`. It makes the manual data entry task for small data more 
-readable. 
+```{r join-tables}
+x <- tribble(
+  ~key, ~val_x,
+     1, "x1",
+     2, "x2",
+     3, "x3"
+)
 
-Now we can perform some joins over both tables.
+y <- tribble(
+  ~key, ~val_y,
+     1, "y1",
+     2, "y2",
+     4, "y3"
+)
+```
 
 ### inner_join
-The `inner_join` joins the observations from x to y keeping only those with matching
-`key`:
-```{r inner-join}
-x %>% 
+The `inner_join` function is used to join two tables together using the shared key
+column. The `inner_join` function will keep only the rows with matching keys in both
+tables. The result will be a new table with the columns from both tables. Try to
+join the tables `x` and `y` using the `key` column:
+
+```{r inner-join-example, exercise=TRUE, exercise.setup = "join-tables"}
+___ |>
+  ___(___, by = "___")
+```
+
+```{r inner-join-example-solution}
+x |>
   inner_join(y, by = "key")
 ```
 
-> Try to join the tables withou specifying the `by` argument.
-> There exist function `semi_join` what it does? What is the difference between semi and inner joins?
+```{r inner-join-example-check}
+lecture_grade_code()
+```
 
 ### left_join
-To match all observations from y to observations from x and keeping all x observations 
-one can use `left_join`:
-```{r left-join}
-x %>% 
+The second join function is `left_join`. It is used to join two tables together
+using the shared key column. The `left_join` function will keep all rows from the
+left table and only the rows with matching keys from the right table. Join tables
+`x` and `y` using the `key` column:
+
+```{r left-join-example, exercise=TRUE, exercise.setup = "join-tables"}
+___ |>
+  ___(___, by = "___")
+```
+
+```{r left-join-example-solution}
+x |>
   left_join(y, by = "key")
 ```
 
-> Is there opposite direction join?
+```{r left-join-example-check}
+lecture_grade_code()
+```
 
 ### full_join
-To merge both tables and keep all records with or without matching you can use
-the `full_join`:
-```{r full-join}
-x %>% 
+The `full_join` function is used to join two tables together using the shared key
+column. The `full_join` function will keep all rows from both tables. The result
+will be a new table with the columns from both tables. The rows with matching keys
+will be merged together. The rows with non-matching keys will be filled with `NA` values.
+Join tables `x` and `y` using the `key` column:
+
+```{r full-join-example, exercise=TRUE, exercise.setup = "join-tables"}
+___ |>
+  ___(___, by = "___")
+```
+
+```{r full-join-example-solution}
+x |>
   full_join(y, by = "key")
 ```
 
+```{r full-join-example-check}
+lecture_grade_code()
+```
+
 ### anti_join
-Very useful "trick" for finding non-matching samples from one data set is provided 
-by `anti_join`:
-```{r anti-join}
-x %>% 
+The last join function we will be covering is `anti_join`. It provides you with 
+the filtering functionality. It will keep only the rows from the left table, which
+are not present in the right table. The result will be a new table with the columns
+from the left table. Join tables `x` and `y` using the `key` column:
+
+```{r anti-join-example, exercise=TRUE, exercise.setup = "join-tables"}
+___ |>
+  ___(___, by = "___")
+```
+
+```{r anti-join-example-solution}
+x |>
   anti_join(y, by = "key")
+```
+
+```{r anti-join-example-check}
+lecture_grade_code()
 ```
 
 # Plotting
