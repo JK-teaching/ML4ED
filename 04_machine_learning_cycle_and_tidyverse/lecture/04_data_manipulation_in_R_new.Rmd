@@ -1,0 +1,847 @@
+---
+title: "Data manipulation in R"
+output: 
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+runtime: shiny_prerendered
+---
+```{r setup, include=FALSE, context="server"}
+library(learnr)
+library(gradethis)
+library(glue)
+library(dplyr)
+library(curl)
+library(jsonlite)
+library(openssl)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+tutorial_options(exercise.eval = FALSE)
+
+req <- curl_fetch_memory("https://api.ipify.org?format=json")
+
+HASH <- as.character(md5(fromJSON(rawToChar(req$content))[[1]]))
+
+event_recorder <- function(tutorial_id, 
+                           tutorial_version,
+                           user_id,
+                           event, 
+                           data) {
+  REPO <- "C:/Users/annak/Documents/kuba_prace/learnr/"
+  
+  if (file.exists(glue("{REPO}/data_{HASH}.rds"))) {
+    t <- readRDS(glue("{REPO}/data_{HASH}.rds"))
+  } else {
+    t <- 
+      tibble(
+        time = .POSIXct(numeric(0)),
+        tutorial_id = character(),
+        tutorial_version = character(),
+        user_id = character(),
+        hash = character(),
+        event = character(),
+        data = list()
+      )
+  }
+  
+  t <- bind_rows(t, 
+                 tibble(
+                   time = Sys.time(),
+                   tutorial_id = tutorial_id,
+                   tutorial_version = tutorial_version,
+                   user_id = user_id,
+                   hash = HASH,
+                   event = event,
+                   data = list(data)
+                 )
+  )
+  
+  saveRDS(t, file = glue("{REPO}/data_{HASH}.rds"))
+}
+
+options(tutorial.event_recorder = event_recorder)
+
+lecture_grade_code <- function() {
+  grade_this_code(
+    correct = "Correct!",
+    incorrect = "Try again. {code_feedback()}"
+  )
+}
+```
+
+## Introduction
+At the end of this lecture you will:
+
+- learn how to use pipes for improved code readability
+- find out alternative to `apply` family 
+- learn the basics of data wrangling
+- explore the basics of advanced plotting in R
+  
+> For simplicity, we will not be using the R and RStudio installed on your computer. We will be
+using interactive excercises created using [learnr](https://cran.r-project.org/web/packages/learnr/index.html) package.
+
+> When you find `___` in the code chunk, it means that you need to fill in the missing part of the code.
+
+## Informed Consent
+This informed consent form is for a project investigating the interactions with the online
+tutorial platform created using `learnr` package.
+
+Name of Investigator: Dr. Jakub Kuzilek (jakub.kuzilek@hu-berlin.de)
+
+Name of Supervisor: Prof. Dr. Niels Pinkwart (pinkwart@hu-berlin.de)
+
+Name of Institution: Humboldt-Universität zu Berlin
+
+**You can download this informed consent in the Moodle course.**
+
+**The data from multiple tutorials will be collected and analysed.The informed consent is the same. For each session, you will get hash, which is the only unique identifier of your interactions with the material.** 
+
+### Information sheet
+
+#### Introduction of investigators
+Jakub Kuzilek is a researcher in fields of educational data mining and learning analytics since completion of his PhD in Artificial Intelligence and Biocybernetics at the Czech Technical University. In 2020 he joined Prof. Dr. Pinkwarts's research group and currently working on the project IMPACT.
+
+#### Purpose of the study
+The purpose of this study is to investigate the interactions with the online tutorial platform created using the `learnr` package. The data will be used to improve the design of the tutorial and to understand how users interact with the platform.
+
+#### Type of Research Intervention
+To support and investigate these learning and interaction processes interaction data will be used. In addition performance data of the students will be collected.
+
+#### Research Data Management
+The collected data will be anonymized and merged. The collected data are stored on the servers of the Computer and Media Service (CMS) of the Humboldt-Universität zu Berlin in Germany and the computers of the researchers. The data access is protected and regulated via a login and the access is restricted to the members of the project team. The personal data will be stored on secured location accessible via authenticated encrypted connection (VPN and SSH). The data are archived for another 10 years after the end of the project according to good scientific practice. The anonymized data may be published to enable Open Access for the general public. The participant may gain access to his/her recorded data, request a correction to his/her personal data record, or withdraw from the research study by contacting the Investigator:
+Jakub Kuzilek at jakub.kuzilek@hu-berlin.de
+
+In case of doubt as to the lawfulness of the processing of personal data, data subjects have the right to lodge a complaint with a Member State supervisory authority. The competent supervisory authority for Humboldt-Universität zu Berlin is Die Berliner Beauftragte für Datenschutz und Informationsfreiheit, Friedrichstraße 219, 10969 Berlin. The official data protection officer for Humboldt-Universität zu Berlin is: Gesine Hoffmann-Holland, Tel: +49 (30) 2093-20022, datenschutz@uv.hu-berlin.de.
+
+#### Voluntary participation
+Participation in this research project is entirely voluntary. It is up to the participant to decide whether or not to participate and there is no explicit or implicit obligation to participate. The participant has the possibility to cancel the participation at any time - even after the signing of the Informed Consent - without any disadvantages for the participant. 
+
+#### Documentation of the consent
+One copy of this document will be kept separately from the research records of this study using a pseudonym id in order to remove data after the request from the participant. The contact details of the participants will be deleted after the project is finished. To assure data deletion of the requesting subject a unique identifier in form of the email address and is required.
+
+### Certificate of consent
+- I agree to the collection of my pseudonymized interaction data in the course "Machine Learning for Education".
+- I agree to the collection of my pseudonymized perfomance data in the course "Machine Learning for Education".
+- I agree to have the anonymized interaction data and the anonymized performance data published under the Creative Commons Attribution 4.0 International (CC-BY) Licence (https://creativecommons.org/licenses/ by/4.0/) and so I allow it to be used by other people for other projects. 
+- I agree to have the interaction data, and the performance data archived for 10 years after finishing of the project.
+
+This hash will be used to identify you in the data from this lecture and to delete your data after the project is finished:
+
+**`r HASH`**
+
+Please, keep it for your records in case you change your mind and want to delete your data.
+
+```{r informed-consent, echo=FALSE}
+question_radio("I agree to the collection of my pseudonymized interaction data in the course 'Machine Learning for Education'.", 
+               correct = NULL, 
+               answer("yes", correct = TRUE),
+               answer("no", correct = TRUE)
+)
+```
+
+
+## Advanced R programming
+We will introduce two topics, which can be considered as advanced, but 
+at the end both approaches simplify the programming in R. The first topic are 
+`pipes`, which works in similar way to the pipes in the Linux bash command line. 
+They enable chaining commands (functions) in more readable format with only a little
+overhead compared to the normal function call. The second topic is package
+`purrr`, which is the alternative to the apply function family providing more consistent
+way for handling the iteration using functional programming paradigm.
+
+## Pipes
+
+Pipes are the way how to chain the function calls together. The main idea is to
+pass the result of one function to the next function as an argument. There are two
+types of pipes in R. The first one is the native pipe, which is available in R
+version 4.1.0 and higher. The second one is the pipe operator `%>%`, which
+comes from the `magrittr` package. It is also available in the `dplyr` package, 
+which is part of the `tidyverse`. 
+
+### Example 
+Let us start with the example. Imagine you are writing the program for cooking pasta, 
+each step is represented by one function. The input to the first function `get_pasta`
+would be `type` of pasta and `number_of_people`, who are going to eat that pasta. The output
+is a list containing the type of pasta and number of people. Try to define the function:
+
+```{r pipes-get-pasta-example, exercise=TRUE}
+___ <- function(___, ___) {
+  print(paste0("Getting ",___," for ",___," persons."))
+  list(___, ___)
+}
+```
+
+```{r pipes-get-pasta-example-solution}
+get_pasta <- function(type, number_of_people) {
+  print(paste0("Getting ",type," for ",number_of_people," persons."))
+  list(type, number_of_people)
+}
+```
+
+```{r pipes-get-pasta-example-check}
+lecture_grade_code()
+```
+
+Now we can define functions `cook_pasta` and `serve_pasta`. The first one will take the
+pasta list and print the message about cooking. It will also `append` the cooking time
+to the list and returns it. The second one will take the pasta list and print the message about serving
+the pasta. It will return the same list as an output. Try to define the functions:
+```{r pipes-cook-serve-pasta-example, exercise=TRUE}
+___ <- function(___) {
+  print(paste0("Cooking ", ___[[1]],".")) # get the type of pasta (1st element of the list)
+  ___(___, "10 minutes")
+}
+
+___ <- function(___) {
+  # get the type of pasta (1st element of the list),
+  # number of people (2nd element of the list), 
+  # cooking time (3rd element of the list)
+  print(paste0("Serving ", ___[[___]], " for ", ___[[___]], "persons cooked for ", ___[[___]],"."))
+  ___
+}
+```
+
+```{r pipes-cook-serve-pasta-example-solution}
+cook_pasta <- function(pasta) {
+  print(paste0("Cooking ", pasta[[1]], "."))
+  pasta[[3]] <- "10 minutes"
+  pasta
+}
+
+serve_pasta <- function(pasta) {
+  # get the type of pasta (1st element of the list),
+  # number of people (2nd element of the list), 
+  # cooking time (3rd element of the list)
+  print(paste0("Serving ", pasta[[1]], " for ", pasta[[2]], " persons cooked for ", pasta[[3]], "."))
+  pasta
+}
+```
+
+```{r pipes-cook-serve-pasta-example-check}
+lecture_grade_code()
+```
+
+### Cooking using variables
+Normally, we will call the functions in defined order and store the interim results
+in variables. Those variables can be used later in the code. Try this in the following
+exercise. Get the `spaghetti` pasta for 20 people, cook it and serve it:
+```{r pipes-pasta}
+get_pasta <- function(type, number_of_people) {
+  print(paste0("Getting ",type," for ",number_of_people," persons."))
+  list(type, number_of_people)
+}
+
+cook_pasta <- function(pasta) {
+  print(paste0("Cooking ", pasta[[1]], "."))
+  pasta[[3]] <- "10 minutes"
+  pasta
+}
+
+serve_pasta <- function(pasta) {
+  # get the type of pasta (1st element of the list),
+  # number of people (2nd element of the list), 
+  # cooking time (3rd element of the list)
+  print(paste0("Serving ", pasta[[1]], " for ", pasta[[2]], " persons cooked for ", pasta[[3]], "."))
+  pasta
+}
+```
+
+```{r pipes-objects-example, exercise=TRUE, exercise.setup = "pipes-pasta"}
+pasta <- ___("___", ___)
+cooked_pasta <- ___(pasta)
+result <- ___(cooked_pasta)
+```
+
+```{r pipes-objects-example-solution}
+pasta <- get_pasta("spaghetti", 20)
+cooked_pasta <- cook_pasta(pasta)
+result <- serve_pasta(cooked_pasta)
+```
+
+```{r pipes-objects-example-check}
+lecture_grade_code()
+```
+
+### Cooking compressed
+We can call function from function to pass the interim results as an argument. This 
+will save some space and typing. Try to do the same as in the previous exercise:
+```{r pipes-compressed-example, exercise=TRUE, exercise.setup = "pipes-pasta"}
+result <- ___(___(___("___", 20)))
+```
+
+```{r pipes-compressed-example-solution}
+result <- serve_pasta(cook_pasta(get_pasta("spaghetti", 20)))
+```
+
+```{r pipes-compressed-example-check}
+lecture_grade_code()
+```
+
+### Cooking using pipes
+The previous two examples are the standard way how to call functions in R. Both ways
+are correct and they are used in the R code. But they are not very readable and
+are sensitive for typing errors and somewhat are hard to read. Especially the 
+second case. For hard readable code we got Lisp :) Luckily, we can use the pipes
+to help us. We will be using base R pipe `|>` operator in our examples. Try to 
+rewrite the previous example using the pipe:
+
+```{r pipes-base-pipe-example, exercise=TRUE, exercise.setup = "pipes-pasta"}
+result <-
+  ___("spaghetti", 20) |> 
+  ___() ___
+  ___()
+```
+
+```{r pipes-base-pipe-example-solution}
+result <-
+  get_pasta("spaghetti", 20) |>
+  cook_pasta() |>
+  serve_pasta()
+```
+
+```{r pipes-base-pipe-example-check}
+lecture_grade_code()
+```
+
+This form of writing the code helps you focus on verbs (=function names) and you
+can read the function composition as a set of imperative actions. Not all the times 
+using a pipe is useful, but in the most cases it improves the code readability and 
+helps you with the sequences of linear operations. 
+
+## Advanced iterations
+
+The `purrr` package comes as an alternative to the `apply` function family. In 
+most cases it provides the same functionality and performance like `apply` functions,
+but it comes with more consistent function calls and names, thus it is easier to 
+understand and work with. 
+
+```{r purrr-setup, include=FALSE}
+library(purrr)
+```
+
+### Example data
+Before we start using the `map*` functions from `purrr`. We need to create example `data.frame` `df`
+with 4 columns (`a`,`b`,`c`,`d`) and `10` rows. The columns will be filled with random numbers from normal
+distribution using `rnorm` function. Create the `df` data.frame:
+```{r purrr-data-example, exercise=TRUE}
+___ <- ___(
+  ___ = rnorm(___),
+  ___,
+  ___,
+  ___
+)
+```
+
+```{r purrr-data-example-solution}
+df <- data.frame(
+  a = rnorm(10),
+  b = rnorm(10),
+  c = rnorm(10),
+  d = rnorm(10)
+)
+```
+
+```{r purrr-data-example-check}
+lecture_grade_code()
+```
+
+### Apply refresher
+You are familiar with the `apply` function family from the previous lecture. Use it
+on the `df` `data.frame` to calculate the `mean` of each column (`MARGIN=2`, second argument):
+```{r apply-example, exercise=TRUE, exercise.setup = "purrr-data-example-solution"}
+___(___,2,___)
+```
+
+```{r apply-example-solution}
+apply(df, 2, mean)
+```
+
+```{r apply-example-check}
+lecture_grade_code()
+```
+
+### map
+The `map` family of functions is the alternative to the `apply` function family. To call
+the base function `map` you need to provide the first argument, which is the input
+data (e.g. `data.frame`), the second argument is the function you want to apply.
+Try to rewrite the previous example:
+```{r map-example, exercise=TRUE, exercise.setup = "purrr-data-example-solution"}
+___(___, ___)
+```
+
+```{r map-example-solution}
+map(df, mean)
+```
+
+```{r map-example-check}
+lecture_grade_code()
+```
+
+### map family
+The `map` function is the most general one. It can be used with any type of input
+data. It returns the result as a list. If one wants to have the result in a specific
+format, the only thing you need to do is to add the suffix to the function name. 
+In our case we want to have the result in a numeric vector format thus we can
+add `_dbl` suffix to the function name. Try to modify previous example:
+```{r map-dbl-example, exercise=TRUE, exercise.setup = "purrr-data-example-solution"}
+map(df, mean)
+```
+
+```{r map-dbl-example-solution}
+map_dbl(df, mean)
+```
+
+```{r map-dbl-example-check}
+lecture_grade_code()
+```
+
+From the function name we know the output and the call is consistent
+with other functions from the "family".The other fuctions from family are: 
+`map_lgl`, `map_int`, `map_chr`.
+
+### Own functions
+Both `apply` and `map` family can work with your own defined functions. Define your
+own function `my_mean` using `sum` and `length` functions and use it in the call
+of `map_dbl` function:
+```{r map-own-function-example, exercise=TRUE, exercise.setup = "purrr-data-example-solution"}
+___ <- function(x) {
+  ___(x)/___(x)
+}
+
+map_dbl(df, ___)
+```
+
+```{r map-own-function-example-solution}
+my_mean <- function(x) {
+  sum(x)/length(x)
+}
+
+map_dbl(df, my_mean)
+```
+
+```{r map-own-function-example-check}
+lecture_grade_code()
+```
+
+### Anonymous functions
+Within the call of the `map` function you can also use the anonymous functions. This 
+is handy when the function is used only once and you do not want to define it
+explicitly. The syntax is straightforward - the body of function is defined 
+directly in the `map*` function call. Try to rewrite the call of `map_dbl`
+using anonymous function:
+```{r map-lambda-example, exercise=TRUE, exercise.setup = "purrr-data-example"}
+map_dbl(df, ___(x) {___(x)/___(x)})
+```
+
+```{r map-lambda-example-solution}
+map_dbl(df, function(x) {sum(x)/length(x)})
+```
+
+```{r map-lambda-example-check}
+lecture_grade_code()
+```
+
+### Shortcuts
+In addition to the normal call of anonymous functions you can use "shortcut syntax"
+for defining the function. The function body is defined using `~` operator (instead of `function(x)`). 
+The first argument is passed to the function as `.`. The body of the function is defined after the `~` operator.
+Rewrite the previ0us example using the shortcut syntax:
+```{r map-lambda-example-2, exercise=TRUE, exercise.setup = "purrr-data-example"}
+map_dbl(df, ___ sum(___)/length(___))
+```
+
+```{r map-lambda-example-2-solution}
+map_dbl(df, ~ sum(.)/length(.))
+```
+
+```{r map-lambda-example-2-check}
+lecture_grade_code()
+```
+
+## Data manipulation
+Now we know a lot about the basic R and few things from the advanced topics such as
+pipes. Finally, we can get to the modern approach to data analysis within the R using 
+packages and functions from the universe of packages called `tidyverse`. It is the collection 
+of packages designed for the data science. They share the same philosophy, grammar
+and structures. For detailse [see](https://www.tidyverse.org/). The `tidyverse` package
+is just the umbrella package, which will install all the packages usually 
+needed for the data manipulation and analysis.
+
+```{r tidyverse-setup, include=FALSE}
+library(tidyverse)
+```
+
+### tibble
+The `tibble` is core package of the whole `tidyverse`. It provides the `tibble` 
+data structure, which is modern version of `data.frame`. It is more user friendly
+and it is designed to be used with the `tidyverse` packages. You can create new `tibble`
+using the `tibble` function. Try to create `tibble` with 3 columns `a`, `b`, `c`. Column
+`a` should contain numbers from 1 to 4, column `b` should contain the number 3 and
+column `c` should contain the sum of `a` squared and `b` columns. Do it now:
+
+```{r tibble-example, exercise=TRUE}
+tibble(a = ___,
+       b = ___,
+       c = ___)
+```
+
+```{r tibble-example-solution}
+tibble(a = 1:4,
+       b = 3,
+       c = a^2 + b)
+```
+
+```{r tibble-example-check}
+lecture_grade_code()
+```
+
+You can also convert existing `data.frame` to `tibble` using the `as_tibble` function. Let us
+convert the `iris` data set to `tibble`:
+```{r as_tibble, exercise=TRUE}
+___(iris)
+```
+
+```{r as_tibble-solution}
+as_tibble(iris)
+```
+
+```{r as_tibble-check}
+lecture_grade_code()
+```
+
+The `tibble` will never change the column names and never creates row names (which is
+somewhat strange behavior of `data.frame`). In addition, you can work with `tibble`
+similarly to `data.frame`. 
+
+### readr
+To read data from files you can use base R function but there is `tidyverse` alternative, 
+which is faster (approx. 10x); produce `tibble`s; will not produce factors from 
+character columns; and does not depends on the OS and system variables (better reproducibility).
+The most important functions from the package are:
+
+- `read_csv` for reading the file
+```{r read-iris, eval=FALSE}
+data <- read_csv("iris.csv")
+```
+- `write_csv` for writing the file
+```{r write-iris, eval=FALSE}
+write_csv(iris, "iris.csv")
+```
+
+## Data wrangling
+Data wrangling is the term, which represents reading, cleaning and transforming 
+the data in order to be able to visualize and model them. In this section we 
+will uncover the most common and useful function for manipulating tabular data (aka `data.frame`),
+which are the most common structured data.
+
+Data in appropriate format for analysis are called tidy. Tidy data set contains data
+in tabular format where:
+
+- each variable (feature) have own column
+- each observation (sample) own row
+- each value have own cell
+
+### mutate
+`mutate` transforms the column values according to supplied formula and stores them
+either to the original or to new column. Let us show the examples on `iris` data set:
+```{r mutate}
+iris %>% 
+  mutate(Petal.Length = Petal.Length^2)
+
+iris %>% 
+  mutate(petal_area = Petal.Length*Petal.Width)
+```
+
+We can also do multiple operations at once:
+```{r mutate-2}
+iris %>% 
+  mutate(Petal.Length = Petal.Length^2,
+         petal_area = Petal.Length*Petal.Width)
+```
+
+### select
+`select` selects the specified columns. You can also use it for column reordering. 
+And there exist multiple helper functions, which simplify the process. Let us do 
+some selection on the `iris` data set:
+```{r select}
+iris %>% 
+  select(Petal.Length, Species)
+```
+
+We can also decide that we what to drop some columns using `-` sign:
+```{r select-2}
+iris %>% 
+  select(-Petal.Length)
+```
+
+Finally, we would like to move Species column to be the first not last:
+```{r select-3}
+iris %>% 
+  select(Species, everything())
+```
+
+> Try to explore what `everything` is doing and what are the other helper functions.
+
+### rename
+`rename` function renames the column and it is in principle shortcut for `mutate` followed
+by `select`. Let us show the example:
+```{r rename}
+iris %>% 
+  rename(class = Species)
+```
+
+> Try to achieve same renaming with the combination of `mutate` and `select` functions.
+
+### filter
+`filter` function subset the rows of the input `data.frame` it works similarly to 
+`where` clause in `SQL`. Let us try it: 
+```{r filter}
+iris %>% 
+  filter(Petal.Width == 0.2)
+```
+
+You can chain the conditions (which is equivalent to & operator):
+```{r filter-chain}
+iris %>% 
+  filter(Petal.Width == 0.2, Sepal.Length > 4.5)
+```
+
+> Try to filter out all setosa iris flowers with petal length less or equal to 1.4.
+
+### summarise
+For summary operation over the selected column(s) you can use `summarise` function. 
+For example:
+```{r summarise}
+iris %>% 
+  summarise(max_petal_length = max(Petal.Length))
+```
+
+### group_by
+If we need to take into account the categorical variables defining groups (aka class) in 
+our data we can use `group_by` function. For example:
+```{r group_by}
+iris %>% 
+  group_by(Species) %>% 
+  summarise(max_petal_length = max(Petal.Length))
+```
+
+### Reshaping tables
+One of the difficult tasks for example in `SQL` is reshaping the data from long to 
+wide format (~ converting rows to columns and back). For that purpose there exists
+two functions within the `tidyverse` - `pivot_wider` and `pivot_longer`. To
+demonstrate their capabilities we will use "example" tables from the `tidyverse`. The first:
+```{r table4a}
+table4a
+```
+This table clearly contains two columns, which represenst one variable - `year`. Thus
+it is viable to transform the table to include this variable using `pivot_longer`:
+```{r pivot-longer}
+table4a %>% 
+  pivot_longer(2:3, names_to = "year", values_to = "cases")
+```
+
+And the second example table:
+```{r table2}
+table2
+```
+
+Again this table has problem, but it is opposite to the previous one - the column
+`type` clearly represent two columns with values from column `count`. So we can transform
+the table using `pivot_wider`:
+```{r pivot-wider}
+table2 %>% 
+  pivot_wider(names_from = type, values_from = count)
+```
+
+### Joining tables
+Sometimes you will need to join two `data.frame`s together. This usually involves
+some key column, which is shared by both data sets. Let us create two sample `tibbles` first:
+```{r join-tables-init}
+x <- tribble(
+  ~key, ~val_x,
+     1, "x1",
+     2, "x2",
+     3, "x3"
+)
+
+y <- tribble(
+  ~key, ~val_y,
+     1, "y1",
+     2, "y2",
+     4, "y3"
+)
+```
+
+Note the way how we created them. We used function `tribble`, which is shortcut
+to transposed `tibble`. It makes the manual data entry task for small data more 
+readable. 
+
+Now we can perform some joins over both tables.
+
+### inner_join
+The `inner_join` joins the observations from x to y keeping only those with matching
+`key`:
+```{r inner-join}
+x %>% 
+  inner_join(y, by = "key")
+```
+
+> Try to join the tables withou specifying the `by` argument.
+> There exist function `semi_join` what it does? What is the difference between semi and inner joins?
+
+### left_join
+To match all observations from y to observations from x and keeping all x observations 
+one can use `left_join`:
+```{r left-join}
+x %>% 
+  left_join(y, by = "key")
+```
+
+> Is there opposite direction join?
+
+### full_join
+To merge both tables and keep all records with or without matching you can use
+the `full_join`:
+```{r full-join}
+x %>% 
+  full_join(y, by = "key")
+```
+
+### anti_join
+Very useful "trick" for finding non-matching samples from one data set is provided 
+by `anti_join`:
+```{r anti-join}
+x %>% 
+  anti_join(y, by = "key")
+```
+
+# Plotting
+With the base R plots one can achive many things, but the notation and the way how
+the base plotting is handled is very old and little bit rusty. Lucky for us, there
+exists package `ggplot2`, which provides the R with the so-called grammar of graphics
+implementation. This grammar defines in rigorous way how the scientific figure should 
+be build and how to achieve this with layering of the representation. 
+
+We will try to produce graphs we created in our last introductory session. And on them
+we will explain basics of plotting using `ggplot2`.
+
+## Scatter plot
+The first figure we have been producing is scatter plot of the `iris` data set. Let us
+try to produce the original simple figure:
+```{r scatter-simple}
+ggplot(iris,
+       aes(x = Petal.Length,
+           y = Petal.Width)) +
+  geom_point()
+```
+
+The first function `ggplot` defines the data layer of our plot. First argument informs
+the plotting function about the data and the second argument is "function", which 
+define the plot aesthetics. In this simple case we have two aesthetics defining 
+data on x and y axis. This foundation data layer is then enhanced with the geometry
+layer, telling the plotting function what kind of graph we are interested in. In
+this case we would like to plot points, thus `geom_point`.
+
+Finally, please note the `+` sign. It is `ggplot2` specific type of pipe, which cannot
+be replaced with the ` %>% ` pipe.
+
+We can extend this basic graph with more layers or adjustments. Let us do few more 
+things:
+```{r scatter-extended}
+ggplot(iris,
+       aes(x = Petal.Length,
+           y = Petal.Width,
+           color = Species)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_bw()
+```
+
+We added one more aesthetics color, which tells the plot how to determine colors
+of the points. Also we, added one more geom_ layer, which plotted the linear regression
+fit of each iris species. And finally we changed the background theme. 
+
+## Histogram
+To produce the histogram similar (+/-) to the base R histogram, we need to just
+adjust the code from the previous plot:
+```{r histogram}
+ggplot(iris,
+       aes(x = Petal.Length)) +
+  geom_histogram() +
+  theme_bw()
+```
+
+We are interested in one variable, thus we need just one aesthetics, which is 
+the `x` and to plot the histogram one needs to add histogram geometry layer instead
+of the point geometry. Again, we can extend the histogram using the similar logic
+as in scatter plot:
+```{r histogram-extended}
+ggplot(iris,
+       aes(x = Petal.Length,
+           fill = Species)) +
+  geom_histogram(position = "identity", alpha = 0.7) +
+  theme_bw()
+```
+We added some additional parameters to the histogram: position forces the plotting
+to produced "un-stacked" histogram and the alpha defines the opacity of the plotted
+objects.
+
+> Try to remove `position="identity"` from the function call. What happened?
+> Change `fill` argument in `aes` to `color`. What happened?
+
+## Conclusion
+The base plotting concludes our introduction to R. Next comes the first assignment,
+which will available after of our seminar.
+
+Here we repeat the important information regarding your consent to the data collection. The following hash will be used to identify you in the data from this lecture and to delete your data after the project is finished:
+**`r HASH`**
+
+Please, keep it for your records in case you change your mind and want to delete your data.
+
+# Assigment
+In our second assignment we will be reworking the code from the previous assignment
+using `tidyverse` packages. To recall - we will be processing subset the ASSISTments data set. 
+And we will be creating two functions For us the data do not matter that much since we are going 
+to create two functions: first will read the data from file, process them and
+outputs the results in other file; and the second will read the original data 
+and produce histogram of selected column. The instructions are the similar to
+previous task :)
+
+## Instructions
+0. Create new Rmd document called `02_submission.Rmd` and save it in the same folder as this file. Then
+use this document to write the code for the assignment (use code chunks and comment them properly).
+1. Create function `read_transform_write` which:
+  - takes two arguments: `input_path` and `output_path` strings
+  - assumes that the input is csv file in required format (you do not need to check that)
+  - reads the file in the `input_path`
+  - selects the columns `user_id`,`assignment_id`,`start_time`,`end_time` and store them in new `data.frame` named `result`
+  - creates new column `elapsed_time` in `result` containing time difference between `end_time` and `start_time`, round the difference to whole number.
+  - creates new column `message` in `result` containing string: `"The user <user_id> finished assignment <assignment_id> in <elapsed_time> seconds.`
+  - stores the `result` to the csv file in `output_path`
+  - prints out first 5 rows of the `result` 
+  - returns 0 when finished 
+  - Hints: 
+    - to delete column from `data.frame` you can assign `NULL` value to the corresponding column: `df$x <- NULL`
+    - it is possible to subtract two POSIXct values dt1-dt2, the result is in seconds
+    - check function `round` 
+    - for building the string you might search for the function `paste` or `paste0`
+    - there exists functions for examining structure of `data.frame` such as `str`, `head`, `tail`
+2. Call the function `read_transform_write` with the arguments `assigment_data.csv` and `task_1.csv"`. Please, note
+that path might need to be changed based on the location of files and your system.
+3. Create function `plot_histogram` which:
+  - takes three arguments `df` data.frame, `col` string, `bins` number
+  - extracts the data from `df` column `col` and plots the histogram with corresponding number of `bins`
+    - histogram should have the title: `Histogram of column <col>`
+    - the bars should be `azure3` color
+    - the legend for the x axis should be the name of the column `col`
+  - make sure that the histogram function is working only for columns where it makes sense, else 
+  it should throw an error 
+  - Hints:
+    - to throw an error use function `stop`
+4. Call function `plot_histogram` with data.frame `df` loaded from `assigment_data.csv`
+and `col` set to `attempt_count` with `bins` set to `3`. 
+    
+## Submission 
+Submit the task via Moodle in corresponding section. Your submission should contain
+one `.Rmd` file named `02_submission.Rmd`. 
