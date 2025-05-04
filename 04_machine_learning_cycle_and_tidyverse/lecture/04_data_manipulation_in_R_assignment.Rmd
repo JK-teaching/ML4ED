@@ -1,0 +1,119 @@
+---
+title: "Data manipulation in R - assignemnt"
+output: 
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+runtime: shiny_prerendered
+---
+
+```{r setup, include=FALSE, context="server"}
+library(learnr)
+library(gradethis)
+library(glue)
+library(dplyr)
+library(curl)
+library(jsonlite)
+library(openssl)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+tutorial_options(exercise.eval = FALSE)
+
+req <- curl_fetch_memory("https://api.ipify.org?format=json")
+
+HASH <- as.character(md5(fromJSON(rawToChar(req$content))[[1]]))
+
+event_recorder <- function(tutorial_id, 
+                           tutorial_version,
+                           user_id,
+                           event, 
+                           data) {
+  REPO <- "C:/Users/annak/Documents/kuba_prace/learnr/"
+  
+  if (file.exists(glue("{REPO}/data_{HASH}.rds"))) {
+    t <- readRDS(glue("{REPO}/data_{HASH}.rds"))
+  } else {
+    t <- 
+      tibble(
+        time = .POSIXct(numeric(0)),
+        tutorial_id = character(),
+        tutorial_version = character(),
+        user_id = character(),
+        hash = character(),
+        event = character(),
+        data = list()
+      )
+  }
+  
+  t <- bind_rows(t, 
+                 tibble(
+                   time = Sys.time(),
+                   tutorial_id = tutorial_id,
+                   tutorial_version = tutorial_version,
+                   user_id = user_id,
+                   hash = HASH,
+                   event = event,
+                   data = list(data)
+                 )
+  )
+  
+  saveRDS(t, file = glue("{REPO}/data_{HASH}.rds"))
+}
+
+options(tutorial.event_recorder = event_recorder)
+
+lecture_grade_code <- function() {
+  grade_this_code(
+    correct = "Correct!",
+    incorrect = "Try again. {code_feedback()}"
+  )
+}
+```
+
+# Assigment
+In our second assignment we will be reworking the code from the previous assignment
+using `tidyverse` packages. To recall - we will be processing subset the ASSISTments data set. 
+And we will be creating two functions For us the data do not matter that much since we are going 
+to create two functions: first will read the data from file, process them and
+outputs the results in other file; and the second will read the original data 
+and produce histogram of selected column. The instructions are the similar to
+previous task :)
+
+## Instructions
+0. Create new Rmd document called `02_submission.Rmd` and save it in the same folder as this file. Then
+use this document to write the code for the assignment (use code chunks and comment them properly).
+1. Create function `read_transform_write` which:
+  - takes two arguments: `input_path` and `output_path` strings
+  - assumes that the input is csv file in required format (you do not need to check that)
+  - reads the file in the `input_path`
+  - selects the columns `user_id`,`assignment_id`,`start_time`,`end_time` and store them in new `data.frame` named `result`
+  - creates new column `elapsed_time` in `result` containing time difference between `end_time` and `start_time`, round the difference to whole number.
+  - creates new column `message` in `result` containing string: `"The user <user_id> finished assignment <assignment_id> in <elapsed_time> seconds.`
+  - stores the `result` to the csv file in `output_path`
+  - prints out first 5 rows of the `result` 
+  - returns 0 when finished 
+  - Hints: 
+    - to delete column from `data.frame` you can assign `NULL` value to the corresponding column: `df$x <- NULL`
+    - it is possible to subtract two POSIXct values dt1-dt2, the result is in seconds
+    - check function `round` 
+    - for building the string you might search for the function `paste` or `paste0`
+    - there exists functions for examining structure of `data.frame` such as `str`, `head`, `tail`
+2. Call the function `read_transform_write` with the arguments `assigment_data.csv` and `task_1.csv"`. Please, note
+that path might need to be changed based on the location of files and your system.
+3. Create function `plot_histogram` which:
+  - takes three arguments `df` data.frame, `col` string, `bins` number
+  - extracts the data from `df` column `col` and plots the histogram with corresponding number of `bins`
+    - histogram should have the title: `Histogram of column <col>`
+    - the bars should be `azure3` color
+    - the legend for the x axis should be the name of the column `col`
+  - make sure that the histogram function is working only for columns where it makes sense, else 
+  it should throw an error 
+  - Hints:
+    - to throw an error use function `stop`
+4. Call function `plot_histogram` with data.frame `df` loaded from `assigment_data.csv`
+and `col` set to `attempt_count` with `bins` set to `3`. 
+    
+## Submission 
+Submit the task via Moodle in corresponding section. Your submission should contain
+one `.Rmd` file named `02_submission.Rmd`. 
