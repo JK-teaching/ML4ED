@@ -29,7 +29,7 @@ event_recorder <- function(tutorial_id,
                            user_id,
                            event, 
                            data) {
-  REPO <- "C:/Users/annak/Documents/kuba_prace/learnr/"
+  REPO <- "/vol/home-vol2/dig/kuzilekj/ML4ED_2025/04_data_manipulation_in_r"
   
   if (file.exists(glue("{REPO}/data_{HASH}.rds"))) {
     t <- readRDS(glue("{REPO}/data_{HASH}.rds"))
