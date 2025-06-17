@@ -1,216 +1,891 @@
 ---
-title: "Supervised methods - k-Nearest Neighbours"
-output:
-  html_document:
-    df_print: paged
+title: "Supervised methods"
+output: 
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+    css: css/custom.css
+runtime: shiny_prerendered
 ---
+```{r setup, include=FALSE}
+library(learnr)
+library(gradethis)
+library(glue)
+library(dplyr)
+library(curl)
+library(jsonlite)
+library(openssl)
+library(tidyverse)
+library(caret)
+library(patchwork)
 
-# Introduction
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+tutorial_options(exercise.eval = FALSE)
+
+options(user_id = NULL)
+
+lecture_grade_code <- function() {
+  grade_this_code(
+    correct = "Correct!",
+    incorrect = "Try again. {code_feedback()}"
+  )
+}
+```
+
+```{js, context = "head", echo = FALSE}
+// JavaScript code to generate a unique ID and send it to R
+$(document).ready(function() {
+  // Function to send the unique ID to R
+  function sendIDToR(uniqueID) {
+    // Store in localStorage for persistence
+    localStorage.setItem('learnr_user_id', uniqueID);
+    
+    // Send to R via Shiny if available
+    if (typeof Shiny !== 'undefined' && typeof Shiny.setInputValue === 'function') {
+      Shiny.setInputValue('user_unique_id', uniqueID);
+      console.log('IP address sent to R:', uniqueID);
+    } else {
+      // If Shiny isn't ready yet, try again in 500ms
+      setTimeout(function() { sendIDToR(uniqueID); }, 500);
+    }
+  }
+  
+  // Check if we already have the ID in the localStorage
+  const uniqueID = localStorage.getItem('learnr_user_id');
+  if (uniqueID) {
+    // If we have it, send it to R
+    sendIDToR(uniqueID);
+  } else {
+    // Generate a new unique ID
+    sendIDToR(Math.random().toString(36).substring(2, 15));
+  }
+});
+```
+
+```{r, context="server", echo=FALSE}
+# IMPORTANT: This chunk runs in the Shiny server context
+# Here 'input' object is available
+
+# Create a reactive value to store the user's IP address
+user_id <- reactiveVal(NULL)
+
+# Observer that captures the IP address from JavaScript
+observeEvent(input$user_unique_id, {
+  # Store the IP address in our reactive value
+  user_id(md5(input$user_unique_id))
+  
+  # Also store in options for global access
+  id_data <- getOption("user_id")
+  if (is.null(id_data)) {
+    id_data <- md5(input$user_unique_id)
+    options(user_id = id_data)
+  }
+})
+
+# For debugging: Display the captured IP address
+output$id_display <- renderText({
+  if(is.null(user_id())) {
+    "ID not yet generated"
+  } else {
+    user_id()
+  }
+})
+
+output$id_display2 <- renderText({
+  if(is.null(user_id())) {
+    "ID not yet generated"
+  } else {
+    user_id()
+  }
+})
+
+Sys.sleep(0.7)
+
+event_recorder <- function(tutorial_id, 
+                           tutorial_version,
+                           user_id,
+                           event, 
+                           data) {
+  REPO <- "/Users/jakubkuzilek/Documents/projects/temp"
+  
+  HASH <- getOption("user_id")
+  
+  if (file.exists(glue("{REPO}/data_{HASH}.rds"))) {
+    t <- readRDS(glue("{REPO}/data_{HASH}.rds"))
+  } else {
+    t <- 
+      tibble(
+        time = .POSIXct(numeric(0)),
+        tutorial_id = character(),
+        tutorial_version = character(),
+        user_id = HASH,
+        hash = character(),
+        event = character(),
+        data = list()
+      )
+  }
+  
+  t <- bind_rows(t, 
+                 tibble(
+                   time = Sys.time(),
+                   tutorial_id = tutorial_id,
+                   tutorial_version = tutorial_version,
+                   user_id = HASH,
+                   event = event,
+                   data = list(data)
+                 )
+  )
+  
+  saveRDS(t, file = glue("{REPO}/data_{HASH}.rds"))
+}
+
+options(tutorial.event_recorder = event_recorder)
+```
+
+## Introduction
 At the end of this lecture you will:
 
 - know how to implement k-Nearest Neighbours algorithm (k-NN)
 - be able to conduct ML experiment using `caret` package
 
-> The lecture contains non-mandatory small task, which should help you to deepen 
-your understanding. The are quoted as this text.
+> For simplicity, we will not be using the R and RStudio installed on your computer. We will be
+using interactive excercises created using [learnr](https://cran.r-project.org/web/packages/learnr/index.html) package.
 
-# Reproducibility
+> When you find `___` in the code chunk, it means that you need to fill in the missing part of the code.
+
+## Informed Consent
+This informed consent form is for a project investigating the interactions with the online
+tutorial platform created using `learnr` package.
+
+Name of Investigator: Dr. Jakub Kuzilek (jakub.kuzilek@hu-berlin.de)
+
+Name of Supervisor: Prof. Dr. Niels Pinkwart (pinkwart@hu-berlin.de)
+
+Name of Institution: Humboldt-Universität zu Berlin
+
+**You can download this informed consent in the Moodle course.**
+
+**The data from multiple tutorials will be collected and analysed.The informed consent is the same. For each session, you will get hash, which is the only unique identifier of your interactions with the material.** 
+
+### Information sheet
+
+#### Introduction of investigators
+Jakub Kuzilek is a researcher in fields of educational data mining and learning analytics since completion of his PhD in Artificial Intelligence and Biocybernetics at the Czech Technical University. In 2020 he joined Prof. Dr. Pinkwarts's research group and currently working on the project IMPACT.
+
+#### Purpose of the study
+The purpose of this study is to investigate the interactions with the online tutorial platform created using the `learnr` package. The data will be used to improve the design of the tutorial and to understand how users interact with the platform.
+
+#### Type of Research Intervention
+To support and investigate these learning and interaction processes interaction data will be used. In addition performance data of the students will be collected.
+
+#### Research Data Management
+The collected data will be anonymized and merged. The collected data are stored on the servers of the Computer and Media Service (CMS) of the Humboldt-Universität zu Berlin in Germany and the computers of the researchers. The data access is protected and regulated via a login and the access is restricted to the members of the project team. The personal data will be stored on secured location accessible via authenticated encrypted connection (VPN and SSH). The data are archived for another 10 years after the end of the project according to good scientific practice. The anonymized data may be published to enable Open Access for the general public. The participant may gain access to his/her recorded data, request a correction to his/her personal data record, or withdraw from the research study by contacting the Investigator:
+Jakub Kuzilek at jakub.kuzilek@hu-berlin.de
+
+In case of doubt as to the lawfulness of the processing of personal data, data subjects have the right to lodge a complaint with a Member State supervisory authority. The competent supervisory authority for Humboldt-Universität zu Berlin is Die Berliner Beauftragte für Datenschutz und Informationsfreiheit, Friedrichstraße 219, 10969 Berlin. The official data protection officer for Humboldt-Universität zu Berlin is: Gesine Hoffmann-Holland, Tel: +49 (30) 2093-20022, datenschutz@uv.hu-berlin.de.
+
+#### Voluntary participation
+Participation in this research project is entirely voluntary. It is up to the participant to decide whether or not to participate and there is no explicit or implicit obligation to participate. The participant has the possibility to cancel the participation at any time - even after the signing of the Informed Consent - without any disadvantages for the participant. 
+
+#### Documentation of the consent
+One copy of this document will be kept separately from the research records of this study using a pseudonym id in order to remove data after the request from the participant. The contact details of the participants will be deleted after the project is finished. To assure data deletion of the requesting subject a unique identifier in form of the email address and is required.
+
+### Certificate of consent
+- I agree to the collection of my pseudonymized interaction data in the course "Machine Learning for Education".
+- I agree to the collection of my pseudonymized perfomance data in the course "Machine Learning for Education".
+- I agree to have the anonymized interaction data and the anonymized performance data published under the Creative Commons Attribution 4.0 International (CC-BY) Licence (https://creativecommons.org/licenses/ by/4.0/) and so I allow it to be used by other people for other projects. 
+- I agree to have the interaction data, and the performance data archived for 10 years after finishing of the project.
+
+This hash will be used to identify you in the data from this lecture and to delete your data after the project is finished:
+
+```{r, echo=FALSE}
+textOutput("id_display")
+```
+\
+Please, keep it for your records in case you change your mind and want to delete your data.
+
+```{r informed-consent, echo=FALSE}
+question_radio("I agree to the collection of my pseudonymized interaction data in the course 'Machine Learning for Education', lecture: 'Supervised Methods'.", 
+               correct = NULL, 
+               answer("yes", correct = TRUE),
+               answer("no", correct = TRUE)
+)
+```
+
+## Reproducibility
 The k-NN is not influenced by the initialization problem like k-means algorithm, 
 but when performing the ML experiment you will be splitting data into the folds.
 Thus you will never get the same result. You need to "seed" properly random number
-generator to obtain the stable and reproducible results. To do that you need to `set.seed` function
-at the start of your code. This will guarantee that your results are stable 
-between multiple runs. So, let us set the seed first:
-```{r set-seed}
-set.seed(2206)
+generator to obtain the stable and reproducible results. This will guarantee that your 
+results are stable between multiple runs. Set the seed to the `1234` like in 
+previous lecture:
+```{r set-seed, exercise=TRUE}
+___(___)
 ```
 
-# Required packages
-
-We will be using `tidyverse` and `magrittr` libraries in this lecture.
-In addition we will be using library `caret`. You will find out 
-more about it later. Let us load them first:
-```{r tidyverse}
-library(tidyverse)
-library(magrittr)
-library(caret)
+```{r set-seed-solution}
+set.seed(1234)
 ```
 
-# Data
-In this lecture we will be using data set called `iris`. You can read details of 
-that dataset using `?iris`. It contains 150 samples of three different species
-of iris and measurements of their sepal and petal leaf. We can explore the first 
-few lines using `head`:
-```{r head-iris}
-head(iris)
+```{r set-seed-check}
+lecture_grade_code()
 ```
 
-As you can see we have 4 different features and one target variable, which represents
-the iris species. At first we can explore, if there are missing variables in the 
-data set:
-```{r iris-missing-data}
-iris %>% 
-  summarise(across(everything(),~ sum(is.na(.))))
+## Data
+In this lecture we will be using data set called `iris`. You can read details about dataset using `?iris`. 
+It contains 150 samples of three different species of iris and measurements of their sepal (length \& width) 
+and petal (length \& width) leafs. At first, check the first 10 entries of dataset using `head()` function:
+```{r iris-head, exercise=TRUE}
+___(___,___)
 ```
-As the iris data set is the training data set you can see that there are no missing 
-variables. But it is worth checking this at first to avoid future "problems". 
-TO deal with missing values, you can explore imputation techniques (those are out
-of the scope of this course, the most common one is replacing the missing values
-with mean value of the column) We checked missing values and now we can observe 
-the data set using the `ggplot2` package:
-```{r iris-plot}
-iris %>% 
-  ggplot(aes(x = Sepal.Length, 
-             y = Petal.Length,
-             color = Species)) +
+
+```{r iris-head-solution}
+head(iris, 10)
+```
+
+```{r iris-head-check}
+lecture_grade_code()
+```
+
+### Missing values
+When you are going to perform machine learning training on the dataset you will
+need to check if some data samples have missing values. You can check it using 
+`summary()` function. This function will show you the minimum, maximum, mean, median and
+quantiles of the numeric variables and number of unique values in the categorical variables. It
+will also shows you number of `NA`s, which is the value that corresponds to missing value in R.
+Try it:
+
+```{r iris-summary, exercise=TRUE}
+___(___)
+```
+
+```{r iris-summary-solution}
+summary(iris)
+```
+
+```{r iris-summary-check}
+lecture_grade_code()
+```
+
+### Visual exploration
+Good. You have no missing values in the dataset. So it is time to explore it visually.
+You are already familiar with `ggplot2` package, so you can use it to create the scatter plot (`geom_point`) of the dataset.
+Plot the scatterplot with `Sepal.Length` on the x-axis and `Sepal.Width` on the y-axis. Assign
+the `Species` variable to the `color` aesthetic to see the distribution of samples.
+
+```{r iris-ggplot, exercise=TRUE}
+___(___,
+    ___(___ = ___, 
+        ___ = ___, 
+        ___ = ___)
+    ) +
+  ___()
+```
+
+```{r iris-ggplot-solution}
+ggplot(iris, 
+       aes(x = Sepal.Length, 
+           y = Sepal.Width, 
+          color = Species)
+       ) +
   geom_point()
 ```
+
+```{r iris-ggplot-check}
+lecture_grade_code()
+```
+
+### 
+
 You can observe that there is clear difference of the setosa class compared
 to versicolor and virginica species. We can also observe that versicolor is somewhere
 in the middle "bellow" the virginica, but the clear distinction is not possible.
 
-> Try to play with the x- and y-axis features to see if the distribution of class
-values is the same in all feature combinations.
+## k-Nearest Neighbours
 
-# k-Nearest Neighbours
+The k-Nearest Neighbors (k-NN) measures the distance between new sample to the 
+samples in the training set, picks k nearest samples and classifies the new sample
+according to majority voting of the classes of the k nearest samples. We will 
+implement simple version of the k-NN model with `iris` data set. 
 
-The k-Nearest Neighbors, which works with measuring the distance from new sample
-to the samples in the training set. Since the algorithm did not involve any model
-training we can proceed directly to the classification. In our case, we will create
-an artificial scenario, on which we will develop the simple implementation of the
-algorithm. The scenario involves removing one sample from the `iris` data set and
-using it as new sample to classify. We will use the `dist` function to compute the
-distance between the samples and then we will pick `k = 3` closest samples to the new
-sample. The classification will be done by majority voting. 
-
-At first, let us pick one random sample from `iris` dataset to play our new sample.
-We will pick the samplenumber 104:
-```{r knn-new-sample}
-indx <- 104
-
-new_sample <- 
-  iris[indx,]
+### New data 
+At first, create new sample of iris having 
+`Sepal.Length = 5.0, Sepal.Width = 3.5, Petal.Length = 1.5, Petal.Width = 0.2` 
+and `Species = "setosa"`. Create new `date.frame` containing just one row with the 
+values of the new sample:
+```{r new-sample, exercise=TRUE}
+new_sample <- ___(___ = ___, 
+                   ___ = ___, 
+                   ___ = ___, 
+                   ___ = ___, 
+                   ___ = "setosa")
 ```
 
-We also need to remove the sample from the training data set:
-```{r knn-new-sample-remove}
-training_data <- # remove sample from iris
-  iris[-indx,]
+```{r new-sample-solution}
+new_sample <- data.frame(Sepal.Length = 5.0, 
+                          Sepal.Width = 3.5, 
+                          Petal.Length = 1.5, 
+                          Petal.Width = 0.2, 
+                          Species = "setosa")
 ```
 
-Now, we have our new sample and we can compute distances between sample and all
-other samples in `training_data` and pick `k = 3` closest samples. At first, we 
-will append the sample to the training data set and drop the labels, which we do not 
-want to use in the distance computation:
-```{r knn-new-data}
-new_data <- 
-  new_sample %>% # add sample to the first position
-  bind_rows(training_data) %>% 
+```{r new-sample-check}
+lecture_grade_code()
+```
+
+### 
+
+Let us visually check the sample we created. Use `ggplot2` to plot the scatterplot
+with `Sepal.Length` on the x-axis and `Sepal.Width` on the y-axis. First, plot
+the `iris` data set using `geom_point()` function and store it as `g` variable. 
+Color the points by `Species`. Try it now:
+```{r new-sample-ggplot, exercise=TRUE}
+(
+g <-
+  ___(___, 
+      aes(___ = ___, 
+          ___ = ___, 
+          ___ = ___)
+       ) +
+  ___()
+)
+```
+
+```{r new-sample-ggplot-solution}
+(
+g <-
+  ggplot(iris, 
+      aes(x = Sepal.Length, 
+          y = Sepal.Width, 
+          color = Species)
+       ) +
+  geom_point()
+)
+```
+
+```{r new-sample-ggplot-check}
+lecture_grade_code()
+```
+
+Notice the outer brackets, which forces the `g` variable to be called after the 
+creation. This is useful for saving some code writing.
+
+###
+
+Now, add new sample to the plot using `geom_point()` function. Set the `data` argument
+to `new_sample` and set the `x` and `y` aesthetics to `Sepal.Length` and `Sepal.Width`.
+To better find the point in the plot set the `color` argument to `"black"` and `size` to `5`:
+```{r new-sample-ggplot2-setup}
+g <-
+  ggplot(iris, 
+      aes(x = Sepal.Length, 
+          y = Sepal.Width, 
+          color = Species)
+       ) +
+  geom_point()
+
+new_sample <- data.frame(Sepal.Length = 5.0, 
+                          Sepal.Width = 3.5, 
+                          Petal.Length = 1.5, 
+                          Petal.Width = 0.2, 
+                          Species = "setosa")
+```
+
+```{r new-sample-ggplot2, exercise=TRUE}
+g +
+  ___(___ = ___, 
+      ___(___ = ___, 
+          ___ = ___), 
+          ___ = "___", 
+          ___ = ___)
+```
+
+```{r new-sample-ggplot2-solution}
+g +
+  geom_point(data = new_sample, 
+             aes(x = Sepal.Length, 
+                 y = Sepal.Width), 
+             color = "black", 
+             size = 5)
+```
+
+```{r new-sample-ggplot2-check}
+lecture_grade_code()
+```
+
+### Distance
+Great! So we have our new sample and our `iris` dataset. Now, we need to calculate
+the distance between the new sample and all samples in the `iris` dataset. There 
+are few steps to do that. At first, append the new sample to the `iris` dataset 
+and remove the `Species` column from the new dataset (`new_iris`), because we will not use that 
+for distance calculation. For appending the row to the `data.frame` use 
+function `bind_rows()`. For selecting the columns use `select()` function. Do it now:
+```{r new-sample-iris-setup}
+new_sample <- data.frame(Sepal.Length = 5.0, 
+                          Sepal.Width = 3.5, 
+                          Petal.Length = 1.5, 
+                          Petal.Width = 0.2, 
+                          Species = "setosa")
+```
+
+```{r new-sample-iris, exercise=TRUE}
+new_iris <- 
+  ___ |> # add sample to the first position
+  ___(___) |>
+  ___(-___) 
+```
+
+```{r new-sample-iris-solution}
+new_iris <- 
+  new_sample |> # add sample to the first position
+  bind_rows(iris) |>
+  select(-Species) 
+```
+
+```{r new-sample-iris-check}
+lecture_grade_code()
+```
+
+### 
+
+Awesome! Now we have our new sample in the `new_iris` dataset. Let us proceed to 
+calculating the distance between the new sample and all samples using the 
+`dist()` function. The function returns numeric vector, which is hard to process.
+Thus convert the vector to the matrix and store it in `distances` variable:
+```{r new-sample-distances-setup}
+new_sample <- data.frame(Sepal.Length = 5.0, 
+                          Sepal.Width = 3.5, 
+                          Petal.Length = 1.5, 
+                          Petal.Width = 0.2, 
+                          Species = "setosa")
+
+new_iris <- 
+  new_sample |> # add sample to the first position
+  bind_rows(iris) |>
   select(-Species) # drop labels
 ```
 
-Next we will compute the distance between our new sample and all other samples in
-the training data set. In addition, we will transform the distance matrix to the
-standard matrix and extract the distances between our sample and the training data:
-```{r knn-dist}
+```{r new-sample-distances, exercise=TRUE}
+___ <- 
+  ___ |>
+  ___() |>
+  ___()
+```
+
+```{r new-sample-distances-solution}
+distances <- 
+  new_iris |>
+  dist() |>
+  as.matrix()
+```
+
+```{r new-sample-distances-check}
+lecture_grade_code()
+```
+
+### Selecting the nearest neighbours
+Now, we have all distances between all samples computed. Thus, we need to pick
+the samples closest to the new sample. Select the 1st row of the distances matrix
+to get the distances of our new sample to all other samples. Then, sort the distances
+and select the first `k = 3` samples. Use `order()` function to sort the distances and
+`head()` to extract the first `k` samples. Store the result in `nearest` variable:
+```{r new-sample-nearest-setup}
+new_sample <- data.frame(Sepal.Length = 5.0, 
+                          Sepal.Width = 3.5, 
+                          Petal.Length = 1.5, 
+                          Petal.Width = 0.2, 
+                          Species = "setosa")
+
+new_iris <-
+  new_sample |> # add sample to the first position
+  bind_rows(iris) |>
+  select(-Species) # drop labels
+
 distances <-
-  new_data %>%
-  dist() %>% # count distance
-  as.matrix() %>% 
-  extract(1,) # extract distances 
+  new_iris |>
+  dist() |>
+  as.matrix()
 ```
 
-Finally, we will pick the `k = 3` closest samples to our new sample:
-```{r knn-pick-neighbours}
-neighbours <-
-  distances %>%
-  order() %>% # return indexes of vector values sorted from min to max
-  extract(2:4) # 3 elements (k=3) indx = 1 is our new sample
+```{r new-sample-nearest, exercise=TRUE}
+___ <- 
+  ___[___,] |>
+  ___() |>
+  ___()
 ```
 
-Now we know the neighbors of our sample, thus we can continue with the majority 
-voting. We select the neighbors from the training data set and count their classes:
-```{r knn-class}
-classification <-
-  training_data %>% 
-  filter(row_number() %in% neighbours) %>% 
-  count(Species) %>%
-  arrange(desc(n)) %>% # sort by count, not necessary in this particular case
-  extract(1,1) # extract the class label
+```{r new-sample-nearest-solution}
+nearest <- 
+  distances[1,] |>
+  order() |>
+  head(3)
 ```
 
-The neighbours are all from the `virginica` class, thus our `new_sample` is 
-classified as `virginica`. Since we know also the original label we can check,
-if the algorithm have the classification correct:
-```{r knn-check}
-if(new_sample$Species == classification){
-  print("Congratulations! You classified the sample correctly!")
-} else {
-  print("Incorrect!")
-}
+```{r new-sample-nearest-check}
+lecture_grade_code()
 ```
-And it is correct! Congratulations, you implemented your own k-Nearest Neighbours
-algorithm.
 
-> Try to change the distance method for computation of distance in `dist` function. How the results changed?
+### 
 
-> Try different number of `k`. What happens?
+Finally, we do know our nearest neighbours, but we do not know their labels. So 
+we need to extract the labels from the `Species` column of the `iris` dataset,
+select the labels of the nearest neighbours, count the labels and select the most frequent one.
+To do that you need to `filter` the `iris` dataset by the `row_number`s of the `nearest` neighbours,
+then `count` the labels (`Species` column), `arrange` them in `desc`ending order based on the cou`n`ted values
+and finally `slice` the first one. Store the value in the `classes` variable. Try it now:
+```{r new-sample-nearest-labels-setup}
+new_sample <- data.frame(Sepal.Length = 5.0, 
+                          Sepal.Width = 3.5, 
+                          Petal.Length = 1.5, 
+                          Petal.Width = 0.2, 
+                          Species = "setosa")
+new_iris <-
+  new_sample |> # add sample to the first position
+  bind_rows(iris) |>
+  select(-Species) # drop labels
 
-# Introduction to `caret` package and ML workflow
+distances <-
+  new_iris |>
+  dist() |>
+  as.matrix()
 
-In previous parts you have learned how k-NN is working. But in reality you will 
-be using the existing implementation of the algorithm. It is because you will never 
-achieve the quality level of implementation compared to the widely used implementations. 
-And of course, you will have no time to implement algorithms by yourself for every 
-use case. Thus it is important to learn so-called Machine Learning workflow. In R we can 
-make use of `caret` package, which provides the interface for many ML algorithm
-implementations available in R. Plus it provides simplified way for conducting 
-proper ML experiment. 
+nearest <-
+  distances[1,] |>
+  order() |>
+  head(3)
+```
 
-For the purpose of the demonstration we will be using the `iris` data set with just
-two classes. To do that we will create new data set `iris_caret` containing only
-classes `virginica` and `not virginica`:
-```{r caret-iris}
+```{r new-sample-nearest-labels, exercise=TRUE}
+___ <- 
+  ___ |>
+  ___(___() %in% ___) |>
+  ___(___) |>
+  ___(___(___)) |>
+  ___(1)
+```
+
+```{r new-sample-nearest-labels-solution}
+classes <- 
+  iris |>
+  filter(row_number() %in% nearest) |>
+  count(Species) |>
+  arrange(desc(n)) |>
+  slice(1)
+```
+
+```{r new-sample-nearest-labels-check}
+lecture_grade_code()
+```
+
+### 
+
+And finally, we can `print` the class of the new sample stored in `classes$Species`:
+```{r new-sample-class-setup}
+new_sample <- data.frame(Sepal.Length = 5.0, 
+                          Sepal.Width = 3.5, 
+                          Petal.Length = 1.5, 
+                          Petal.Width = 0.2, 
+                          Species = "setosa")
+
+new_iris <-
+  new_sample |> # add sample to the first position
+  bind_rows(iris) |>
+  select(-Species) # drop labels
+
+distances <-
+  new_iris |>
+  dist() |>
+  as.matrix()
+
+nearest <-
+  distances[1,] |>
+  order() |>
+  head(3)
+
+classes <-
+  iris |>
+  filter(row_number() %in% nearest) |>
+  count(Species) |>
+  arrange(desc(n)) |>
+  slice(1)
+```
+
+```{r new-sample-class, exercise=TRUE}
+___(___)
+```
+
+```{r new-sample-class-solution}
+print(classes$Species)
+```
+
+```{r new-sample-class-check}
+lecture_grade_code()
+```
+
+## `caret` package
+We tried to classify the new sample using the k-NN algorithm. But when working on 
+real data you need something more robust and of more quality. For that purpose
+the `R` does have wide range of algorithms implemented. Unfortunately, they all
+have different interfaces and it is hard to use them together. To solve this problem
+the `caret` package was created. It provides unified interface to many algorithms
+and ease the machine learning workflow. 
+
+### Data
+In our example we will be again using the `iris` dataset. But this time we will
+merge two species together to create a binary classification problem. Create
+new dataset called `iris_caret` containing column `Species` with only two classes `virginica` and `not virginica`.
+For conditional `mutate` of the data in the column use `if_else()` function. Try that now:
+```{r iris-caret, exercise=TRUE}
+___ <- 
+  ___ |>
+  ___(___ = ___(___ == "___", 
+                "___", 
+                "___")
+      )
+```
+
+```{r iris-caret-solution}
 iris_caret <- 
-  iris %>% 
-  mutate(Species = if_else(Species == "virginica", # is class virginica?
-                           "virginica", # yes, keep it
-                           "not virginica") # no, set the class to not virginica
+  iris |>
+  mutate(Species = if_else(Species == "virginica", 
+                           "virginica", 
+                           "not virginica")
          )
 ```
 
+```{r iris-caret-check}
+lecture_grade_code()
+```
+
+### Data & setup
 When you are performing the experiment with small data sets it is usually good 
-approach to use cross-validation for estimating the method error. So for start 
-we create 10 folds (by default), to which we will split the data:
-```{r caret-folds}
-# create folds for error estimation
-folds <- createFolds(iris_caret$Species, list = FALSE)
+approach to use [cross-validation](https://en.wikipedia.org/wiki/Cross-validation_(statistics)) for estimating the method error.
+So for start we create 10 `folds`, to which we will split the data using `createFolds()` on the `Species` column:
+```{r iris-caret-folds-setup}
+set.seed(1234)
+
+iris_caret <- 
+  iris |>
+  mutate(Species = if_else(Species == "virginica", 
+                           "virginica", 
+                           "not virginica")
+         )
 ```
 
-The `folds` is the vector containing the number of corresponding fold to which 
-the sample belongs. Next, we need to tell `caret` "engine" how it will be training
+```{r iris-caret-folds, exercise=TRUE}
+___ <- 
+  ___(___$___, 
+      list = FALSE) # return matrix instead of list
+```
+
+```{r iris-caret-folds-solution}
+folds <- 
+  createFolds(iris_caret$Species, 
+              list = FALSE) # return matrix instead of list
+```
+
+```{r iris-caret-folds-check}
+lecture_grade_code()
+```
+
+### 
+
+Next, we need to tell `caret` "engine" how it will be training
 the algorithm. This is done by creating `trainControl` object containing our ML 
-experiment configuration. In this case we will use 10-fold cross-validation:
-```{r caret-traincontrol}
-# caret control structure
-fit_control <- trainControl(method = "cv", # train model using cross-validation
-                            number = 10) # use 10 folds
+experiment configuration. In this case we will use `10`-fold cross-validation (`cv`).
+Store the object in `fit_control` variable:
+```{r iris-caret-train-control, exercise=TRUE}
+___ <- ___(method = "__", 
+           number = ___) 
 ```
 
-For storing the results we will create empty `data.frame` containing the results:
-```{r caret-results}
+```{r iris-caret-train-control-solution}
+fit_control <- trainControl(method = "cv", 
+                            number = 10)
+```
+
+```{r iris-caret-train-control-check}
+lecture_grade_code()
+```
+
+###
+
+Finally, we just need to create structure for storing the results of the experiment.
+Create empty `data.frame` `resutls` containing columns `fold`, `accuracy`, `precision` and `recall`:
+```{r iris-caret-results, exercise=TRUE}
+___ <- ___(___ = numeric(0)
+           ___ = numeric(0),
+           ___ = numeric(0),
+           ___ = numeric(0))
+```
+
+```{r iris-caret-results-solution}
 results <- data.frame(fold = numeric(0),
-                      accuracy = numeric(0),
-                      precision = numeric(0),
-                      recall = numeric(0))
+                       accuracy = numeric(0),
+                       precision = numeric(0),
+                       recall = numeric(0))
 ```
 
-> Try to explore why using precision and recall is better than using only accuracy. 
-Search the term "confusion matrix" and try to understand the concept. 
+```{r iris-caret-results-check}
+lecture_grade_code()
+```
 
-And now we can conduct our experiment:
-```{r caret-ml-flow}
-# for each fold
+### Model training and error estimation
+Finally, we can conduct our experiment. There are several elements of what we need
+to do:
+
+1. Iterate over the `folds` and train the model on data from all other folds.
+2. Use the model to predict the `Species` variable on the `validation` dataset.
+3. Estimate the error using our selected fold.
+4. Store the results and calculate average accuracy, precision and recall.
+
+### Iterate over the `folds`
+At first we need to create the `for`-loop to iterate over the folds created previously.
+In the for-loop iterate from `1` to `max(folds)`, which represents the number of folds.
+Then store the `indx` of samples, which are in the corresponding fold. For that use 
+`which()` function to get the indices of the samples in the fold. Finally create
+`validation` and `training` datasets from the `iris_caret` dataset using the `indx` variable:
+```{r caret-step-1-setup}
+set.seed(1234)
+
+iris_caret <- 
+  iris |>
+  mutate(Species = if_else(Species == "virginica", 
+                           "virginica", 
+                           "not virginica")
+         )
+
+folds <-
+  createFolds(iris_caret$Species, 
+              list = FALSE) # return matrix instead of list
+
+fit_control <- trainControl(method = "cv", 
+                            number = 10)
+
+results <- data.frame(fold = numeric(0),
+                       accuracy = numeric(0),
+                       precision = numeric(0),
+                       recall = numeric(0))
+```
+
+```{r caret-step-1, exercise=TRUE, exercise.lines = 30}
+___(n in ___:___(___)) {
+ 
+  ___ <- ___(___ == n) 
+  ___ <- ___[___,] # use fold as a validation data set
+  ___ <- ___[-___,] # use rest of data for training 
+}
+```
+
+```{r caret-step-1-solution}
+for(n in 1:max(folds)) {
+  
+  indx <- which(folds == n) 
+  validation <- iris_caret[indx,] # use fold as a validation data set
+  training <- iris_caret[-indx,] # use rest of data for training 
+}
+```
+
+```{r caret-step-1-check}
+lecture_grade_code()
+```
+
+### Train the model
+
+Next, we need to include the model training in the loop. We will use `train()` 
+function from `caret` package to train the k-NN model. The function takes several arguments:
+- prediction formula - the special R construct, which tells caret to predict `Species` variable using all other variables (denoted by `.`): `Species ~ .`
+- `method` - the method we want to use for training, in this case `knn`.
+- `data` - the `training` dataset we created in the previous step.
+- `trControll` - the control object `fit_control` we created earlier to specify the training method.
+
+Include the training now:
+```{r caret-step-2-setup}
+set.seed(1234)
+
+iris_caret <- 
+  iris |>
+  mutate(Species = if_else(Species == "virginica", 
+                           "virginica", 
+                           "not virginica")
+         )
+
+folds <-
+  createFolds(iris_caret$Species, 
+              list = FALSE) # return matrix instead of list
+
+fit_control <- trainControl(method = "cv", 
+                            number = 10)
+
+results <- data.frame(fold = numeric(0),
+                       accuracy = numeric(0),
+                       precision = numeric(0),
+                       recall = numeric(0))
+```
+
+```{r caret-step-2, exercise=TRUE, exercise.lines = 30}
+for(n in 1:max(folds)) {
+  
+  indx <- which(folds == n) 
+  validation <- iris_caret[indx,] # use fold as a validation data set
+  training <- iris_caret[-indx,] # use rest of data for training 
+  
+  # fit model
+  ___ <- ___(___, # predict Species using all (.) features
+             method = "___",
+             data = ___,
+             trControl = ___)
+}
+```
+
+```{r caret-step-2-solution}
+for(n in 1:max(folds)) {
+  
+  indx <- which(folds == n) 
+  validation <- iris_caret[indx,] # use fold as a validation data set
+  training <- iris_caret[-indx,] # use rest of data for training 
+  
+  # fit model
+  fit <- train(Species ~ ., # predict Species using all (.) features
+               method = "knn",
+               data = training,
+               trControl = fit_control)
+}
+```
+
+```{r caret-step-2-check}
+lecture_grade_code()
+```
+
+### Predict the `Species` variable
+So the model is ready (trained and tuned using cross-validation) and now deploy it to predict 
+the `Species` variable on the `validation` dataset. Use `predict()` function to do that using
+the `fit` model and `validation` dataset. Store the result in `predictions` variable:
+```{r caret-step-3-setup}
+set.seed(1234)
+
+iris_caret <- 
+  iris |>
+  mutate(Species = if_else(Species == "virginica", 
+                           "virginica", 
+                           "not virginica")
+         )
+
+folds <-
+  createFolds(iris_caret$Species, 
+              list = FALSE) # return matrix instead of list
+
+fit_control <- trainControl(method = "cv", 
+                            number = 10)
+
+results <- data.frame(fold = numeric(0),
+                       accuracy = numeric(0),
+                       precision = numeric(0),
+                       recall = numeric(0))
+```
+
+```{r caret-step-3, exercise=TRUE, exercise.lines = 30}
 for(n in 1:max(folds)) {
   
   indx <- which(folds == n) 
@@ -223,91 +898,312 @@ for(n in 1:max(folds)) {
                data = training,
                trControl = fit_control)
   
-  pred <- predict(fit, newdata = validation) # predict the class for validation dataset
-  
-  result <- confusionMatrix(data = pred, 
-                            reference = as.factor(validation$Species), 
-                            positive = "virginica") # obtain the measurements
-  
-  # store results
-  results[n, ] <- c(n,
-                    result$overall["Accuracy"],
-                    result$byClass["Pos Pred Value"], # = Precision
-                    result$byClass["Sensitivity"]) # = Recall
+  ___ <- ___(___, newdata = ___) # predict the class for validation dataset
 }
 ```
 
-We first extract the training and testing data based on our initial call of `createFolds`.
-Then we train the model using the `train` function. The `train` function is the main
-function of the `caret` package, which is used to train the model. The function takes
-the formula, method, data and `trainControl` object as the arguments. Formula specifies
-the target variable and the features used for the prediction, method specifies 
-the algorithm (in our case k-NN), data is the training data set and `trainControl`
-is the object containing the configuration of the experiment. After the training
-the model is used to predict the class of the validation data set. The predictions
-are then used to compute the confusion matrix, which is used to compute the 
-measures of performance. We set the positive class to `virginica`, that means that 
-the `virginica` class is the class we are interested in and the precision and recall
-values are computed for that class. The results are stored in the `results` data frame. 
-
-You might notice that we are doing the cross-validation twice. In the outer loop
-and withing the train function. This is because the `train` function is using the
-cross-validation to estimate the error of the model and select the best model parameters
-using the training data only. The outer loop is used to estimate the error of the model
-on the validation data set.
-
-> Try to explore the `train` function. What are the arguments of the function? 
-What is the purpose of the `tuneGrid` argument?
-
-Now we can analyse the results. We can compute the mean value of the measures,
-which is the simplest approach to the analysis of the results. We can do that using:
-```{r caret-final-results}
-results %>% 
-  summarise(across(2:4, mean))
+```{r caret-step-3-solution}
+for(n in 1:max(folds)) {
+  
+  indx <- which(folds == n) 
+  validation <- iris_caret[indx,] # use fold as a validation data set
+  training <- iris_caret[-indx,] # use rest of data for training 
+  
+  # fit model
+  fit <- train(Species ~ ., # predict Species using all (.) features
+               method = "knn",
+               data = training,
+               trControl = fit_control)
+  
+  predictions <- predict(fit, newdata = validation) # predict the class for validation dataset
+}
 ```
 
-We can observe that our k-Nearest Neighbours algorithm performed very well in classification 
-of the `iris` data set. It achieved the accuracy of 0.97, precision of 0.95 and 
-recall of 0.98. That means that 97% of all samples were classified correctly, 
-95% of the samples classified as `virginica` were actually `virginica` and 98% 
-of all `virginica` samples were classified correctly. In real world scenario, 
-your work will end by providing the client with the final model trained on the 
-whole data set and with  the detailed insights on how the model performs on the data.
-This includes the measures of performance and how did you estimate them. 
+```{r caret-step-3-check}
+lecture_grade_code()
+```
 
-> Try to experiment with caret results from one validation round? Can you find the 
-final model produced for that round?
+### Estimate the error
 
-# Assigment
+Hurray, we got our predictions for the validation dataset. Now we need to estimate 
+the error of our model. For error estimation we will use `confusionMatrix()` function
+from `caret` package. It compares the predicted values with actual values and
+computes the all possible evaluation measures. The function takes three arguments:
+- `data` - the predicted values, in our case `predictions`
+- `reference` - the actual values, in our case `validation$Species`
+- `positive` - the positive class, in our case `"virginica"`.
 
-In today assignment we will be using [The HarvardX-MITx Person‐Course Dataset AY2013](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/26147). 
-You can read more about this data set in the corresponding link. Your task is to 
-predict if the student of course `HarvardX/CS50x/2012` will pass or fail the course
-(`grade` is 0 for failed and 1 for passed) based on `ndays_act` and `nchapters` 
-features using k-Nearest Neighbours (`knn`) classifier. To work on result prediction
-you should be using `caret` package. 
+Note that the values needs to be factors, so you need to convert them to factors using `as.factor()`.
+Store the result in `cm` variable. Continue extending your loop:
+```{r caret-step-4-setup}
+set.seed(1234)
 
-## Instructions
+iris_caret <- 
+  iris |>
+  mutate(Species = if_else(Species == "virginica", 
+                           "virginica", 
+                           "not virginica")
+         )
 
-- Create R Notebook named `09_submission.Rmd`, in which you will 
-conduct the experiment.
-- Download the data set from the provided [link](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/26147).
-- Read data in R.
-- Prepare the data set for the classification task.
-  - Filter only students of the corresponding course `HarvardX/CS50x/2012`.
-  - Filter students who do not have the grade value (`grade = NA`) and 
-  focus on students who `explored` the course.
-  - Select target variable and features.
-  - Mutate target variable from 1/0 to pass/fail values.
-  - Replace missing values of features (`NA`s) with 0.
-- Load `caret`
-- Fix the seed for reproducibility
-- Split data set into 10-folds
-- Define the `trainControl` object
-  - Use 10-fold cross-validation for training.
-- Fit model using training data and evaluate them on validation fold.
-- Report the values of the Accuracy, Precision and Recall.
+folds <-
+  createFolds(iris_caret$Species, 
+              list = FALSE) # return matrix instead of list
 
-## Submission
-Submit the task via Moodle in corresponding section. Your submission should contain
-one `.Rmd` file named `09_submission.Rmd`.
+fit_control <- trainControl(method = "cv", 
+                            number = 10)
+results <- data.frame(fold = numeric(0),
+                       accuracy = numeric(0),
+                       precision = numeric(0),
+                       recall = numeric(0))
+```
+
+```{r caret-step-4, exercise=TRUE, exercise.lines = 30}
+for(n in 1:max(folds)) {
+  
+  indx <- which(folds == n) 
+  validation <- iris_caret[indx,] # use fold as a validation data set
+  training <- iris_caret[-indx,] # use rest of data for training 
+  
+  # fit model
+  fit <- train(Species ~ ., # predict Species using all (.) features
+               method = "knn",
+               data = training,
+               trControl = fit_control)
+  
+  predictions <- predict(fit, newdata = validation) # predict the class for validation dataset
+  
+  ___ <- ___(data = ___, 
+             reference = as.factor(___$___), 
+             positive = "___") # obtain the measurements
+}
+```
+
+```{r caret-step-4-solution}
+for(n in 1:max(folds)) {
+  
+  indx <- which(folds == n) 
+  validation <- iris_caret[indx,] # use fold as a validation data set
+  training <- iris_caret[-indx,] # use rest of data for training 
+  
+  # fit model
+  fit <- train(Species ~ ., # predict Species using all (.) features
+               method = "knn",
+               data = training,
+               trControl = fit_control)
+  
+  predictions <- predict(fit, newdata = validation) # predict the class for validation dataset
+  
+  cm <- confusionMatrix(data = predictions, 
+                        reference = as.factor(validation$Species), 
+                        positive = "virginica") # obtain the measurements
+}
+```
+
+```{r caret-step-4-check}
+lecture_grade_code()
+```
+
+### Store the results
+Finally, we need to store the results of our experiment. We will store the fold number,
+accuracy, precision and recall in the `results` data frame we created earlier. 
+Their values are hidden in `cm` object. The accuracy is stored in `cm$overall["Accuracy"]`,
+precision is stored in `cm$byClass["Pos Pred Value"]` and recall is stored in `cm$byClass["Sensitivity"]`.
+Extend the loop for the last time to store the results in `results` data frame:
+```{r caret-step-5-setup}
+set.seed(1234)
+
+iris_caret <- 
+  iris |>
+  mutate(Species = if_else(Species == "virginica", 
+                           "virginica", 
+                           "not virginica")
+         )
+
+folds <-
+  createFolds(iris_caret$Species, 
+              list = FALSE) # return matrix instead of list
+
+fit_control <- trainControl(method = "cv", 
+                            number = 10)
+
+results <- data.frame(fold = numeric(0),
+                       accuracy = numeric(0),
+                       precision = numeric(0),
+                       recall = numeric(0))
+
+```
+
+```{r caret-step-5, exercise=TRUE, exercise.lines = 30}
+for(n in 1:max(folds)) {
+  
+  indx <- which(folds == n) 
+  validation <- iris_caret[indx,] # use fold as a validation data set
+  training <- iris_caret[-indx,] # use rest of data for training 
+  
+  # fit model
+  fit <- train(Species ~ ., # predict Species using all (.) features
+               method = "knn",
+               data = training,
+               trControl = fit_control)
+  
+  predictions <- predict(fit, newdata = validation) # predict the class for validation dataset
+  
+  cm <- confusionMatrix(data = predictions, 
+                        reference = as.factor(validation$Species), 
+                        positive = "virginica") # obtain the measurements
+  
+  # store results
+  ___[n, ] <- c(n,
+                ___$___["Accuracy"],
+                ___$byClass["Pos Pred Value"], # = Precision
+                ___$byClass["Sensitivity"]) # = Recall
+}
+
+```
+
+```{r caret-step-5-solution}
+for(n in 1:max(folds)) {
+  
+  indx <- which(folds == n) 
+  validation <- iris_caret[indx,] # use fold as a validation data set
+  training <- iris_caret[-indx,] # use rest of data for training 
+  
+  # fit model
+  fit <- train(Species ~ ., # predict Species using all (.) features
+               method = "knn",
+               data = training,
+               trControl = fit_control)
+  
+  predictions <- predict(fit, newdata = validation) # predict the class for validation dataset
+  
+  cm <- confusionMatrix(data = predictions, 
+                        reference = as.factor(validation$Species), 
+                        positive = "virginica") # obtain the measurements
+  
+  # store results
+  results[n, ] <- c(n,
+                    cm$overall["Accuracy"],
+                    cm$byClass["Pos Pred Value"], # = Precision
+                    cm$byClass["Sensitivity"]) # = Recall
+}
+
+```
+
+```{r caret-step-5-check}
+lecture_grade_code()
+```
+
+### Average results
+Finally, we can calculate the average accuracy, precision and recall of our model.
+To do that we will use our well known `summarise()` function from `dplyr` package 
+over the `results` data frame. Try it now:
+```{r caret-step-6-setup}
+set.seed(1234)
+
+iris_caret <- 
+  iris |>
+  mutate(Species = if_else(Species == "virginica", 
+                           "virginica", 
+                           "not virginica")
+         )
+
+folds <-
+  createFolds(iris_caret$Species, 
+              list = FALSE) # return matrix instead of list
+
+fit_control <- trainControl(method = "cv", 
+                            number = 10)
+
+results <- data.frame(fold = numeric(0),
+                       accuracy = numeric(0),
+                       precision = numeric(0),
+                       recall = numeric(0))
+
+```
+
+```{r caret-step-6, exercise=TRUE, exercise.lines = 30}
+for(n in 1:max(folds)) {
+  
+  indx <- which(folds == n) 
+  validation <- iris_caret[indx,] # use fold as a validation data set
+  training <- iris_caret[-indx,] # use rest of data for training 
+  
+  # fit model
+  fit <- train(Species ~ ., # predict Species using all (.) features
+               method = "knn",
+               data = training,
+               trControl = fit_control)
+  
+  predictions <- predict(fit, newdata = validation) # predict the class for validation dataset
+  
+  cm <- confusionMatrix(data = predictions, 
+                        reference = as.factor(validation$Species), 
+                        positive = "virginica") # obtain the measurements
+  
+  # store results
+  results[n, ] <- c(n,
+                    cm$overall["Accuracy"],
+                    cm$byClass["Pos Pred Value"], # = Precision
+                    cm$byClass["Sensitivity"]) # = Recall
+}
+
+___ |>
+  ___(___ = mean(___),
+      ___ = mean(___),
+      ___ = mean(___))
+
+```
+
+```{r caret-step-6-solution}
+for(n in 1:max(folds)) {
+  
+  indx <- which(folds == n) 
+  validation <- iris_caret[indx,] # use fold as a validation data set
+  training <- iris_caret[-indx,] # use rest of data for training 
+  
+  # fit model
+  fit <- train(Species ~ ., # predict Species using all (.) features
+               method = "knn",
+               data = training,
+               trControl = fit_control)
+  
+  predictions <- predict(fit, newdata = validation) # predict the class for validation dataset
+  
+  cm <- confusionMatrix(data = predictions, 
+                        reference = as.factor(validation$Species), 
+                        positive = "virginica") # obtain the measurements
+  
+  # store results
+  results[n, ] <- c(n,
+                    cm$overall["Accuracy"],
+                    cm$byClass["Pos Pred Value"], # = Precision
+                    cm$byClass["Sensitivity"]) # = Recall
+}
+
+results |>
+  summarise(accuracy = mean(accuracy),
+            precision = mean(precision),
+            recall = mean(recall))
+
+```
+
+```{r caret-step-6-check}
+lecture_grade_code()
+```
+
+## Conclusion
+Great! You have successfully implemented the k-NN algorithm using `caret` package and
+estimated the error of the model using cross-validation. You can observe that the results
+are very well, yet not 100% accurate. The reason is that we trained the model on the smaller dataset
+and estimate the error on the validation dataset. This means, you get better idea
+how the model is behaving on the unseen data.
+
+Here we repeat the important information regarding your consent to the data collection. The following hash will be used to identify you in the data from this lecture and to delete your data after the project is finished:
+
+```{r, echo=FALSE}
+textOutput("id_display2")
+```
+\
+Please, keep it for your records in case you change your mind and want to delete your data.
+
+

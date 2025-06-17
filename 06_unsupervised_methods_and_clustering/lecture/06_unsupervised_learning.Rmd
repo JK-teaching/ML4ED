@@ -1,341 +1,883 @@
 ---
-title: "Unsupervised learning"
-output:
-  html_document:
-    df_print: paged
+title: "Unsupervised Learning"
+output: 
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+    css: css/custom.css
+runtime: shiny_prerendered
 ---
+```{r setup, include=FALSE}
+library(learnr)
+library(gradethis)
+library(glue)
+library(dplyr)
+library(curl)
+library(jsonlite)
+library(openssl)
+library(tidyverse)
+library(factoextra)
+library(dendextend)
+library(cluster)
+library(patchwork)
 
-# Introduction
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+tutorial_options(exercise.eval = FALSE)
+
+options(user_id = NULL)
+
+lecture_grade_code <- function() {
+  grade_this_code(
+    correct = "Correct!",
+    incorrect = "Try again. {code_feedback()}"
+  )
+}
+```
+
+```{js, context = "head", echo = FALSE}
+// JavaScript code to generate a unique ID and send it to R
+$(document).ready(function() {
+  // Function to send the unique ID to R
+  function sendIDToR(uniqueID) {
+    // Store in localStorage for persistence
+    localStorage.setItem('learnr_user_id', uniqueID);
+    
+    // Send to R via Shiny if available
+    if (typeof Shiny !== 'undefined' && typeof Shiny.setInputValue === 'function') {
+      Shiny.setInputValue('user_unique_id', uniqueID);
+      console.log('IP address sent to R:', uniqueID);
+    } else {
+      // If Shiny isn't ready yet, try again in 500ms
+      setTimeout(function() { sendIDToR(uniqueID); }, 500);
+    }
+  }
+  
+  // Check if we already have the ID in the localStorage
+  const uniqueID = localStorage.getItem('learnr_user_id');
+  if (uniqueID) {
+    // If we have it, send it to R
+    sendIDToR(uniqueID);
+  } else {
+    // Generate a new unique ID
+    sendIDToR(Math.random().toString(36).substring(2, 15));
+  }
+});
+```
+
+```{r, context="server", echo=FALSE}
+# IMPORTANT: This chunk runs in the Shiny server context
+# Here 'input' object is available
+
+# Create a reactive value to store the user's IP address
+user_id <- reactiveVal(NULL)
+
+# Observer that captures the IP address from JavaScript
+observeEvent(input$user_unique_id, {
+  # Store the IP address in our reactive value
+  user_id(md5(input$user_unique_id))
+  
+  # Also store in options for global access
+  id_data <- getOption("user_id")
+  if (is.null(id_data)) {
+    id_data <- md5(input$user_unique_id)
+    options(user_id = id_data)
+  }
+})
+
+# For debugging: Display the captured IP address
+output$id_display <- renderText({
+  if(is.null(user_id())) {
+    "ID not yet generated"
+  } else {
+    user_id()
+  }
+})
+
+output$id_display2 <- renderText({
+  if(is.null(user_id())) {
+    "ID not yet generated"
+  } else {
+    user_id()
+  }
+})
+
+Sys.sleep(0.7)
+
+event_recorder <- function(tutorial_id, 
+                           tutorial_version,
+                           user_id,
+                           event, 
+                           data) {
+  REPO <- "/Users/jakubkuzilek/Documents/projects/temp"
+  
+  HASH <- getOption("user_id")
+  
+  if (file.exists(glue("{REPO}/data_{HASH}.rds"))) {
+    t <- readRDS(glue("{REPO}/data_{HASH}.rds"))
+  } else {
+    t <- 
+      tibble(
+        time = .POSIXct(numeric(0)),
+        tutorial_id = character(),
+        tutorial_version = character(),
+        user_id = HASH,
+        hash = character(),
+        event = character(),
+        data = list()
+      )
+  }
+  
+  t <- bind_rows(t, 
+                 tibble(
+                   time = Sys.time(),
+                   tutorial_id = tutorial_id,
+                   tutorial_version = tutorial_version,
+                   user_id = HASH,
+                   event = event,
+                   data = list(data)
+                 )
+  )
+  
+  saveRDS(t, file = glue("{REPO}/data_{HASH}.rds"))
+}
+
+options(tutorial.event_recorder = event_recorder)
+```
+
+## Introduction
 At the end of this lecture you will:
 
 - know how to perform clustering using  k-means algorithm (`kmeans`).
 - select the number of clusters `k` for the k-means algorithm
-- optionally:
-  - perform clustering using agglomerative hierarchical clustering (`hclust`)
-  - understand the structure of dendogram and the different distance computation
+- perform clustering using agglomerative hierarchical clustering (`hclust`)
+- understand the structure of dendogram and the different distance computation
 approaches
 
-> The lecture contains non-mandatory small task, which should help you to deepen your understanding. The are quoted as this text.
+> For simplicity, we will not be using the R and RStudio installed on your computer. We will be
+using interactive excercises created using [learnr](https://cran.r-project.org/web/packages/learnr/index.html) package.
 
-# Reproducibility
-The clustering algorithms, especially k-means, are sensitive to the initial setup. Thus
-you will never get the same result if you will "seed" properly random number generator.
-To do that you need to `set.seed` function at the start of your code. This will
-guarantee that your results are stable between multiple runs. So, let us set the seed first:
-```{r set-seed}
-set.seed(2206)
+> When you find `___` in the code chunk, it means that you need to fill in the missing part of the code.
+
+## Informed Consent
+This informed consent form is for a project investigating the interactions with the online
+tutorial platform created using `learnr` package.
+
+Name of Investigator: Dr. Jakub Kuzilek (jakub.kuzilek@hu-berlin.de)
+
+Name of Supervisor: Prof. Dr. Niels Pinkwart (pinkwart@hu-berlin.de)
+
+Name of Institution: Humboldt-Universität zu Berlin
+
+**You can download this informed consent in the Moodle course.**
+
+**The data from multiple tutorials will be collected and analysed.The informed consent is the same. For each session, you will get hash, which is the only unique identifier of your interactions with the material.** 
+
+### Information sheet
+
+#### Introduction of investigators
+Jakub Kuzilek is a researcher in fields of educational data mining and learning analytics since completion of his PhD in Artificial Intelligence and Biocybernetics at the Czech Technical University. In 2020 he joined Prof. Dr. Pinkwarts's research group and currently working on the project IMPACT.
+
+#### Purpose of the study
+The purpose of this study is to investigate the interactions with the online tutorial platform created using the `learnr` package. The data will be used to improve the design of the tutorial and to understand how users interact with the platform.
+
+#### Type of Research Intervention
+To support and investigate these learning and interaction processes interaction data will be used. In addition performance data of the students will be collected.
+
+#### Research Data Management
+The collected data will be anonymized and merged. The collected data are stored on the servers of the Computer and Media Service (CMS) of the Humboldt-Universität zu Berlin in Germany and the computers of the researchers. The data access is protected and regulated via a login and the access is restricted to the members of the project team. The personal data will be stored on secured location accessible via authenticated encrypted connection (VPN and SSH). The data are archived for another 10 years after the end of the project according to good scientific practice. The anonymized data may be published to enable Open Access for the general public. The participant may gain access to his/her recorded data, request a correction to his/her personal data record, or withdraw from the research study by contacting the Investigator:
+Jakub Kuzilek at jakub.kuzilek@hu-berlin.de
+
+In case of doubt as to the lawfulness of the processing of personal data, data subjects have the right to lodge a complaint with a Member State supervisory authority. The competent supervisory authority for Humboldt-Universität zu Berlin is Die Berliner Beauftragte für Datenschutz und Informationsfreiheit, Friedrichstraße 219, 10969 Berlin. The official data protection officer for Humboldt-Universität zu Berlin is: Gesine Hoffmann-Holland, Tel: +49 (30) 2093-20022, datenschutz@uv.hu-berlin.de.
+
+#### Voluntary participation
+Participation in this research project is entirely voluntary. It is up to the participant to decide whether or not to participate and there is no explicit or implicit obligation to participate. The participant has the possibility to cancel the participation at any time - even after the signing of the Informed Consent - without any disadvantages for the participant. 
+
+#### Documentation of the consent
+One copy of this document will be kept separately from the research records of this study using a pseudonym id in order to remove data after the request from the participant. The contact details of the participants will be deleted after the project is finished. To assure data deletion of the requesting subject a unique identifier in form of the email address and is required.
+
+### Certificate of consent
+- I agree to the collection of my pseudonymized interaction data in the course "Machine Learning for Education".
+- I agree to the collection of my pseudonymized perfomance data in the course "Machine Learning for Education".
+- I agree to have the anonymized interaction data and the anonymized performance data published under the Creative Commons Attribution 4.0 International (CC-BY) Licence (https://creativecommons.org/licenses/ by/4.0/) and so I allow it to be used by other people for other projects. 
+- I agree to have the interaction data, and the performance data archived for 10 years after finishing of the project.
+
+This hash will be used to identify you in the data from this lecture and to delete your data after the project is finished:
+
+```{r, echo=FALSE}
+textOutput("id_display")
+```
+\
+Please, keep it for your records in case you change your mind and want to delete your data.
+
+```{r informed-consent, echo=FALSE}
+question_radio("I agree to the collection of my pseudonymized interaction data in the course 'Machine Learning for Education', lecture: 'Unsupervised Learning'.", 
+               correct = NULL, 
+               answer("yes", correct = TRUE),
+               answer("no", correct = TRUE)
+)
 ```
 
-> To check random number generator state you cang access the value via `.Random.seed`. Try 
+## Reproducibility
+The clustering algorithms, especially k-means, are sensitive to the initial setup. Thus
+you will never get the same result because of the random number generator embeded in R.
+To fix the "seed" (random number generation start) you need to `set.seed` function. Set
+the seed to the `1234`:
+```{r set-seed, exercise=TRUE}
+set.seed(___)
+```
+
+```{r set-seed-solution}
+set.seed(1234)
+```
+
+```{r set-seed-check}
+lecture_grade_code()
+```
+
+To check random number generator state you cang access the value via `.Random.seed`. Try 
 to change seed to different number and check how the state changes.
 
-We will be using `tidyverse` libraries in this lecture. Let us load it first:
-```{r tidyverse}
-library(tidyverse)
+We can check the random number generator state using the value in `.Random.seed`. Access
+the state of the generator now:
+
+```{r random-seed, exercise=TRUE, exercise.setup = "set-seed-solution"}
+.Random.seed
 ```
 
+In case you want to learn more about how the random number generator works in R, you can
+check the [R documentation](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Random.html).
 
-# Visualization of results
-In this lecture we will be using libraries `factoextra` and `dendextend` for visualizing
-the results of clustering and PCA. And `cluster` package for computation 
-of the silhouette score. To be able to use it, we need to install it:
-```{r install-libraries, eval=FALSE}
-install.packages(c("factoextra","dendextend","cluster"))
-```
-
-When installed, the library needs to be loaded in R environment:
-```{r load-libraries,error=FALSE,warning=FALSE,message=FALSE}
-library(factoextra)
-library(dendextend)
-library(cluster)
-```
-
-# Data
-For our lecture we will be using data set containing statistics in arrests per
+## Data
+For our lecture we will be using data set `USArrests` containing statistics in arrests per
 100.000 residents in US in 1973. The data contains information about Murder, Assault
 Rape and percentage of urban population living in urban areas. The data set is available
 in R by default as `data.frame`. The name of the US state is not the data column in the 
 `data.frame` but it is stored as row name. This is not recommended way how to work with data 
-and it should be avoided. This "issue" is legacy of R age. Let us have a look:
+and it should be avoided. This data "issue" is due to legacy reasons. 
 
-```{r usarrests}
+### `str`ucture
+Now, we can explore the data. Start with the `str` function, which explores the 
+structure of the `data.frame`:
+
+```{r usarrests-str, exercise=TRUE}
+___(___)
+```
+
+```{r usarrests-str-solution}
 str(USArrests)
+```
 
+```{r  usarrests-str-check}
+lecture_grade_code()
+```
+
+You can observe that each column of the `data.frame` is listed in the answer together
+with the value types and first few values as an example. Finally the number of
+observations and total number of variables (features/columns) is listed.
+
+### `head`
+To check the first few samples from the data, you can use function `head`. Try that 
+now:
+
+```{r usarrests-head, exercise=TRUE}
+___(___)
+```
+
+```{r usarrests-head-solution}
 head(USArrests)
 ```
 
-Let us have a look on the data using scatter plot:
-```{r visual}
-USArrests %>% 
+```{r  usarrests-head-check}
+lecture_grade_code()
+```
+
+We can observe the first `5` samples from the data set. You might notice that the
+the first "column" contains the state names with no column name. This is the row name of the
+`data.frame`. You can access the row names using `rownames` function. Try that now:
+
+```{r usarrests-rownames, exercise=TRUE}
+___(USArrests)
+```
+
+```{r usarrests-rownames-solution}
+rownames(USArrests)
+```
+
+```{r  usarrests-rownames-check}
+lecture_grade_code()
+```
+
+### `summary`
+
+To get the summary of the data, you can use the `summary` function. It will give you
+the summary of each column in the data set. Try that now:
+```{r usarrests-summary, exercise=TRUE}
+___(USArrests)
+```
+
+```{r usarrests-summary-solution}
+summary(USArrests)
+```
+
+```{r  usarrests-summary-check}
+lecture_grade_code()
+```
+
+### Scatter plot
+If you remember, we spoke about the necessity of visualizing the data before applying
+any analysis. Let us have a look on the data using scatter plot via `ggplot2` library.
+Try to create a scatter plot using `ggplot2` library with `Murder` on x-axis,
+`Assault` on y-axis and `UrbanPop` as the size of the points. Use `geom_point` to
+create the scatter plot:
+```{r usarrests-visualization, exercise=TRUE}
+USArrests |> 
+  ggplot(aes(x = ___, y = ___, size = ___)) +
+  ___() +
+  theme_bw()
+```
+
+```{r usarrests-visualization-solution}
+USArrests |> 
   ggplot(aes(x = Murder, y = Assault, size = UrbanPop)) +
   geom_point() +
   theme_bw()
 ```
 
-You can observe that there is some structure in data and we are going to explore it
-more with clustering. 
+```{r usarrests-visualization-check}
+lecture_grade_code()
+```
 
-> Try to explore the dataset structure more using ggplot library. Try to change
-`x`, `y` and `size` values. Try `geom_histogram`.
-
-# Clustering
-
-# Normalization and standardization
+## Normalization & Standardization
 As you already know, the data, which are processed by the clustering algorithms
 should be "somehow adjusted" in order make the values of individual features more 
-comparable. The most common approaches are normalization and standardization. We will
-explore them next.
+comparable. The most common approaches are normalization and standardization. 
 
-## Normalization
-Normalized data are scaled to the range between 0 and 1. The scaling reduces the 
-effect of outliers (data deviating much from the other data). To normalize we
-can can write our own function, which subtracts the minimum value from vector 
-and then divides the result with the range of the original vector (maximum - minimum):
-```{r normalize}
+### Normalization
+```{r normalization-setup, echo=FALSE}
 normalize <- function(x) {
-  (x - min(x))/(max(x) - min(x))
+  (x - min(x)) / (max(x) - min(x))
+}
+
+standardize <- function(x) {
+  x |>
+    scale() |>
+    as.vector()
+}
+
+usarrests_norm <- 
+  USArrests |> 
+  mutate(across(everything(), normalize))
+```
+
+Normalized data are scaled to the range between 0 and 1. The scaling reduces the 
+effect of outliers (data deviating much from the other data). Define your own function
+`normalize`, which subtracts the `min`imum value from vector `x` and then divides 
+the result with the range of the original vector (`max`imum - `min`imum):
+
+```{r normalize, exercise=TRUE}
+___ <- function(___) {
+  (___ - ___(___)) / (___(___) - ___(___))
 }
 ```
 
-And we can test it with our `USArrests` data set:
-```{r normalized-arrests}
-normalized_USArrests <-
-  USArrests %>% 
+```{r normalize-solution}
+normalize <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+```
+
+```{r normalize-check}
+lecture_grade_code()
+```
+
+Test it on the `USArrests` data set using the `tidyverse` function `mutate` 
+combined with the `across` function. The `across` function allows you to apply the same
+function to multiple columns. Use `everything()` to apply the function to all columns
+in the data set. Store the new dataset in the variable `usarrests_norm`:
+```{r usarrests-norm, exercise=TRUE, exercise.setup = "normalization-setup"}
+___ <- 
+  USArrests |> 
+  ___(across(___(), ___))
+```
+
+```{r usarrests-norm-solution}
+usarrests_norm <- 
+  USArrests |> 
   mutate(across(everything(), normalize))
-
-head(normalized_USArrests)
 ```
 
-You might notice the strange call of `mutate` function. The function `across` 
-enables you to do the mutation (or any other operation such as `summarise`) over
-the multiple columns at once. It takes two arguments columns and the function we 
-want to apply. Here we want to normalize all the columns, thus we made a shortcut
-for specifiing the columns using `everything` function.
-
-We can also check if it works properly using `purrr` function `map_dbl`:
-```{r normalized-arrests-check}
-normalized_USArrests %>% 
-  map_dbl(min)
-
-normalized_USArrests %>% 
-  map_dbl(max)
+```{r usarrests-norm-check}
+lecture_grade_code()
 ```
 
-> Try to change the command using the `summarise` and `across` functions like in 
-the previous example.
+Check the head of the new data set using the `head` function:
+```{r usarrests-norm-head, exercise=TRUE, exercise.setup = "normalization-setup"}
+___(___)
+```
 
-## Standardization
+```{r usarrests-norm-head-solution}
+head(usarrests_norm)
+```
+
+```{r usarrests-norm-head-check}
+lecture_grade_code()
+```
+
+You can observe that all columns are now scaled to the range between `0` and `1`.
+
+### Standardization
 Standardized data have mean value of 0 and their standard deviation is 1. For performing
 the standardization we can employ z-score standardization, which is implemented 
-in R using `scale` function:
-```{r standardization}
-USArrests[,1] %>% 
-  scale()
+in R with `scale` function. Try the execute function on `USArrests` `Murder` column:
+```{r usarrests-scale, exercise=TRUE}
+___(USArrests$___)
 ```
-As you might notice the returned value is not in form of vector it is in form of matrix,
-thus we need to fix this to be able to store the values in the `data.frame`:
-```{r standardization-fix}
+
+```{r usarrests-scale-solution}
+scale(USArrests$Murder)
+```
+
+```{r usarrests-scale-check}
+lecture_grade_code()
+```
+
+You might notice that the output looks different from what we are used to be an
+output of a `data.frame`. The output is a matrix. We need to fix that in order
+to work with the data more easily. Convert the matrix to a `data.frame`. Create
+function `standardize`, which will scale the input vector `x` using the 
+`scale` function and converts its result to a vector:
+
+```{r standardize, exercise=TRUE}
+___ <- function(x) {
+  ___ |>
+    ___() |>
+    as.___()
+}
+```
+
+```{r standardize-solution}
 standardize <- function(x) {
-  scale(x) %>% as.vector()
+  x |>
+    scale() |>
+    as.vector()
+}
+```
+
+```{r standardize-check}
+lecture_grade_code()
+```
+
+Test it on the `USArrests` data set again using `mutate` combined with the `across` function.
+Use `everything()` to apply the function to all columns. Try that now: 
+```{r usarrests-stand, exercise=TRUE, exercise.setup = "normalization-setup"}
+USArrests |> 
+  ___(across(___(), ___))
+```
+
+```{r usarrests-stand-solution}
+USArrests |> 
+  mutate(across(everything(), standardize))
+```
+
+```{r usarrests-stand-check}
+lecture_grade_code()
+```
+
+## K-means clustering
+The first algorithm we are going to explore is k-means, which optimizes the clusters
+using two step approach over the clearly defined criteria function. 
+The algorithm is implemented with the function `kmeans`, which requires two 
+input parameters: the data and `k` number of clusters. Let us try to run the 
+algorithm on the `USArrests` data set. With `k` set to `3`:
+
+```{r kmeans-orig-3, exercise=TRUE}
+kmeans_orig_3 <-
+  ___(___, centers = ___)
+```
+
+```{r kmeans-orig-3-solution}
+kmeans_orig_3 <-
+  kmeans(USArrests, centers = 3)
+```
+
+```{r kmeans-orig-3-check}
+lecture_grade_code()
+```
+
+Check the result stored in `kmeans_orig_3` of the clustering using the `str` function:
+```{r kmeans-orig-3-str, exercise=TRUE, exercise.setup = "kmeans-orig-3-solution"}
+str(___)
+```
+
+```{r kmeans-orig-3-str-solution}
+str(kmeans_orig_3)
+```
+
+```{r kmeans-orig-3-str-check}
+lecture_grade_code()
+```
+
+You can see that the result is stored as a list containing multiple elements. The
+most important element is the `cluster`, which contains the cluster label for each
+sample. The `centers` element contains the coordinates of the cluster centers.
+Other elements contains the criteria function values, sizes of clusters, etc.
+
+We can explore the clusters using the `fviz_cluster` function from the `factoextra` package.
+The function requires the clustering result `kmeans_orig_3` and the original data set `USArrests`.
+Try the function now:
+```{r fviz-cluster, exercise=TRUE, exercise.setup = "kmeans-orig-3-solution"}
+fviz_cluster(___, data = ___)
+```
+
+```{r fviz-cluster-solution}
+fviz_cluster(kmeans_orig_3, data = USArrests)
+```
+
+```{r fviz-cluster-check}
+lecture_grade_code()
+```
+
+You can observe 3 clusters in the plot. The points/samples are colored according to the
+clustering result. The cluster centers are marked with a larger "shape" corresponding
+to the cluster. Points are named because the original data contained row names. 
+The plot is two dimensional projection of the multidimensional data using the first two
+principal components obtained using PCA.
+
+### Normalized data
+You might notice that the clusters are not very well separated. One of the reasons
+might be the fact that the data are not normalized. Let us try to run the clustering algorithm
+on the normalized data `usarrests_norm` using the same `k` value. Try that now:
+
+```{r kmeans-norm-3, exercise=TRUE, exercise.setup = "normalization-setup"}
+kmeans_norm_3 <-
+  ___(___, centers = ___)
+```
+
+```{r kmeans-norm-3-solution}
+kmeans_norm_3 <-
+  kmeans(usarrests_norm, centers = 3)
+```
+
+```{r kmeans-norm-3-check}
+lecture_grade_code()
+```
+
+Check the result stored in `kmeans_norm_3` of the clustering using the `str` function:
+```{r kmeans-norm-3-str, exercise=TRUE, exercise.setup = "kmeans-norm-3-solution"}
+str(___)
+```
+
+```{r kmeans-norm-3-str-solution}
+str(kmeans_norm_3)
+```
+
+```{r kmeans-norm-3-str-check}
+lecture_grade_code()
+```
+
+Finally, you can check the clustering result using the `fviz_cluster` function. 
+Call the function with the clustering result `kmeans_norm_3` and the original 
+data set `usarrests_norm`:
+
+```{r fviz-cluster-norm, exercise=TRUE, exercise.setup = "kmeans-norm-3-solution"}
+fviz_cluster(___, data = ___)
+```
+
+```{r fviz-cluster-norm-solution}
+fviz_cluster(kmeans_norm_3, data = usarrests_norm)
+```
+
+```{r fviz-cluster-norm-check}
+lecture_grade_code()
+```
+
+We can observe that the clusters are much better separated. This is the result
+of normalization, which made the features more comparable.
+
+## Selecting `k`
+When performing clustering, we need to select the number of clusters `k`. You can
+do that empirically by running the clustering algorithm with different `k` values and
+checking the clustering result. However, this is not very efficient, thus several 
+methods can be used to determine the optimal `k` value. 
+
+### Elbow method
+The elbow method is based on the idea that the clustering algorithm will
+produce a better clustering result with larger `k` values. However, the improvement
+is not linear and for specific case of `k` the improvement is not significant producing
+the "elbow" in the plot of the clustering objective function value.
+
+Use the `fviz_nbclust` function to visualize the values of within-cluster sum of squares
+(`wss`) for different `k` values. The function requires the data set (`usarrests_norm`),
+the clustering algorithm and the specification of the measure (`wss`):
+
+```{r elbow-method, exercise=TRUE, exercise.setup = "kmeans-norm-3-solution"}
+fviz_nbclust(___, ___, method = "___") # data, algorithm, measure
+```
+
+```{r elbow-method-solution}
+fviz_nbclust(usarrests_norm, kmeans, method = "wss") # data, algorithm, measure
+```
+
+```{r elbow-method-check}
+lecture_grade_code()
+```
+
+You can observe two "elbows" in the dataset - one for `k = 2` and the second for 
+`k = 4`. Now you can check the results for both values and decide, which holds 
+better outcomes. First, train models for both `k`s using `usarrests_norm`:
+
+```{r kmeans-norm-2-4, exercise=TRUE, exercise.setup = "normalization-setup"}
+kmeans_norm_2 <-
+  ___(___, centers = ___)
+
+kmeans_norm_4 <-
+  ___(___, centers = ___)
+```
+
+```{r kmeans-norm-2-4-solution}
+kmeans_norm_2 <-
+  kmeans(usarrests_norm, centers = 2)
+
+kmeans_norm_4 <-
+  kmeans(usarrests_norm, centers = 4)
+```
+
+```{r kmeans-norm-2-4-check}
+lecture_grade_code()
+```
+
+Next we can plot the results of the clustering next to each other using `patchwork` package 
+in combination with the `fviz_cluster` function. For the data use the `usarrests_norm` and
+for the clustering results use `kmeans_norm_2` and `kmeans_norm_4`:
+
+```{r fviz-cluster-norm-2-4-setup}
+normalize <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
 }
 
-USArrests[,1] %>% 
-  standardize()
+usarrests_norm <- 
+  USArrests |> 
+  mutate(across(everything(), normalize))
+
+kmeans_norm_2 <-
+  kmeans(usarrests_norm, centers = 2)
+
+kmeans_norm_3 <-
+  kmeans(usarrests_norm, centers = 3)
+
+kmeans_norm_4 <-
+  kmeans(usarrests_norm, centers = 4)
+
+sil <- silhouette(kmeans_norm_3$cluster, dist(usarrests_norm))
+
+distances <- dist(usarrests_norm)
+
+hclust_res <- hclust(distances)
+
+hclust_3 <- cutree(hclust_res, k = 3)
+
+dend <- as.dendrogram(hclust_res)
 ```
 
-And now we can apply the same approach as before:
-```{r}
-standardized_USArrests <-
-  USArrests %>% 
-  mutate(across(everything(), standardize))
-
-head(standardized_USArrests)
+```{r fviz-cluster-norm-2-4, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup",fig.height=10}
+fviz_cluster(___, data = ___) /
+  fviz_cluster(___, data = ___)
 ```
 
-> Try to make use of `map_df` instead of using `tidyverse` `mutate` function to 
-get the similar result.
-
-# Clustering algorithms
-
-## k-means clustering
-The second clustering algorithm is k-means. In comparison to the agglomerative hierarchical
-clustering it defines clearly the criteria function, which is optimized via two step
-approach. The algorithm is implemented with the function `kmeans`, which requires two 
-input parameters: the data and `k` number of clusters:
-```{r kmeans-basic}
-kmeans_result <- 
-  normalized_USArrests %>% 
-  kmeans(3)
-
-kmeans_result
-```
-The resulting k-means clustering object contains several items. At first the clustering
-vector of results:
-```{r kmeans-result}
-kmeans_result$cluster
-```
-Also the result contains the matrix of centers with coordinates of the cluster centers:
-```{r kmeans-centers}
-kmeans_result$centers
+```{r fviz-cluster-norm-2-4-solution}
+fviz_cluster(kmeans_norm_2, data = usarrests_norm) / 
+  fviz_cluster(kmeans_norm_4, data = usarrests_norm)
 ```
 
-> Try to explore other items of the object. What contain `totss` and `withinss` values? 
-
-To visualize the result we can employ function from the `factoextra` package:
-```{r fviz_cluster}
-fviz_cluster(kmeans_result,USArrests)
+```{r fviz-cluster-norm-2-4-check}
+lecture_grade_code()
 ```
-You can observe that our four dimensional feature space is projected into two dimensions to
-enable "normal" plotting. This is internally done via Principal Component Analysis and
-selecting two most prominent dimensions covering approximately 86.7% of all information
-within the collected data. Cluster centers are plotted with larger point in the middle
-of the cluster.
 
-We reviewed the basics of the k-means algorithm, but how you can select the `k` 
-objectively. For that purpose we can use our well-know Elbow or Silhouette score
-method. To simplify the process, we can employ another function from the `factoextra`
-package - `fviz_nbclust`. Let us first try the Elbow method:
-```{r elbow-method}
-fviz_nbclust(normalized_USArrests,kmeans, method = "wss") +
-    geom_vline(xintercept = 2, linetype = 2) + theme(plot.title = element_blank())
+### Silhouette method
+The another method for determining the number of clusters is the Silhouette score. 
+Let us plot the silhouette score for our 3-means clustering result `kmeans_norm_3` we used
+above. First we need to compute the silhouette score using the `silhouette` function.
+It takes two arguments first are the clustering labels and the second is the distance
+matrix. The distance matrix can be computed from `usarrests_norm` using the `dist` function. 
+Try it now:
+```{r silhouette, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup"}
+sil <- silhouette(___$cluster, dist(___)) 
 ```
-You might notice that in the method parameter there is `wss` value, which is shortcut
-for within-cluster sum of squares. We can observe that the elbow appears with `k=2`. 
-Which suggests to use this value for the clustering. The another method for determining
-the number of clusters is the Silhouette score. Let us first plot the silhouette score
-for our 3-means clustering result:
-```{r silhouette}
-sil <- silhouette(kmeans_result$cluster, dist(normalized_USArrests))
+
+```{r silhouette-solution}
+sil <- silhouette(kmeans_norm_3$cluster, dist(usarrests_norm))
+```
+
+```{r silhouette-check}
+lecture_grade_code()
+```
+
+The result is a matrix with the silhouette score for each sample. Plot the silhouette `sil`
+score using the `fviz_silhouette` function. 
+
+```{r fviz-silhouette, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup"}
+fviz_silhouette(___)
+```
+
+```{r fviz-silhouette-solution}
 fviz_silhouette(sil)
 ```
-We can observe the silhouette plot for our clustering result for each point
-in each cluster. To employ the average silhouette score for our `k` selection, 
-we need to run the `kmeans` multiple times with different `k` values and compute the
-silhouette for each value. Lucky for us, the function `fviz_nbclust` can do it
-for us:
-```{r avg-silhouette}
-fviz_nbclust(normalized_USArrests, kmeans, method = "silhouette")
+
+```{r fviz-silhouette-check}
+lecture_grade_code()
 ```
-And we can observe the average silhouette score evolution based on the number of 
+
+And now we can plot the silhouette overall average score based on the number of 
 clusters `k`. We then need to pick the highest value and use the corresponding `k`
-as the number of clusters. For both of our methods the optimal number of clusters
-the value `2` has been selected. Let us redo our clustering and check the result:
-```{r optimal-kmeans}
-kmeans_optimal <-
-  normalized_USArrests %>% 
-  kmeans(2)
+as the number of clusters. First plot the average silhouette score using the `fviz_nbclust` function
+with `method = "silhouette"` for our normalized data set `usarrests_norm` and the 
+`kmeans` algorithm:
 
-kmeans_optimal
+```{r silhouette-avg, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup"}
+fviz_nbclust(___, ___, method = "___") # data, algorithm, measure
 ```
-And again we can plot the clusters:
-```{r kmeans-optimal-plot}
-fviz_cluster(kmeans_optimal, USArrests)
+
+```{r silhouette-avg-solution}
+fviz_nbclust(usarrests_norm, kmeans, method = "silhouette") # data, algorithm, measure
 ```
-> Try to use the original and standardized data. Check the results.
 
-> Try to implement the Elbow method by yourself.
+```{r silhouette-avg-check}
+lecture_grade_code()
+```
 
-## OPTIONAL: Agglomerative hierarchical clustering
-The first method we will be working with is the Agglomerative hierarchical clustering.
+## Hierarchical clustering
+The second method we will be working with is the Agglomerative hierarchical clustering.
 In the R implementation it does not work with the data set itself, but process 
 the distance (dissimilarity) object produced by `dist` function. In principle it is matrix, 
 but R process the data and provides you with object containing all matrix elements. 
-For our data set (we will be working with normalized one):
-```{r hac-dist}
-distances <- dist(normalized_USArrests)
+Compute the distance matrix using the `dist` function on the normalized data set `usarrests_norm`:
+```{r dist, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup"}
+distances <- dist(___)
 ```
 
-We can convert the object to the matrix and have closer look on first 5 rows/columns:
-```{r hac-dist2}
-as.matrix(distances)[1:5,1:5]
+```{r dist-solution}
+distances <- dist(usarrests_norm)
 ```
 
-After the distance matrix computation the clustering can be executed:
-```{r hac}
-hac_result <- hclust(distances)
+```{r dist-check}
+lecture_grade_code()
 ```
 
-We can explore the resulting object:
-```{r hac-result}
-hac_result
-
-summary(hac_result)
-```
-You can see that the resulting object does not tell much. However, one can use it
-for plotting the resulting dendogram structure, which is stored within this object:
-```{r hac-dendrogram}
-plot(hac_result)
-```
-Finally, you can select the number of desired clusters (for example) by visual inspection
-of the corresponding dendrogram and get the resulting cluster labels:
-```{r hac-cut}
-hac_cut <- cutree(hac_result, k = 3)
+Check the first 5 rows and columns of the `distances` matrix using the `as.matrix` function:
+```{r dist-matrix, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup"}
+___(___)[1:5, 1:5]
 ```
 
-The command will produce the vector of cluster labels:
-```{r hac-cut2}
-hac_cut
+```{r dist-matrix-solution}
+as.matrix(distances)[1:5, 1:5]
 ```
-If we want "prettify" the dendrogram with our clusters to see the final structure
-we can employ the functions from `dendextend` package. First the resulting object
-needs to be converted to the dendrogram object of the `dendextend` package and then
-we can plot it:
-```{r hac-dendextend}
-hac_dendrogram <- as.dendrogram(hac_result)
-color_dendrogram <- color_branches(hac_dendrogram, k = 3)
-plot(color_dendrogram)
+
+```{r dist-matrix-check}
+lecture_grade_code()
 ```
-And finally, we can add the cluster labels to our  data and plot them:
-```{r hac-plot}
-USArrests %>% 
-  mutate(cluster = as.factor(hac_cut)) %>% 
-  ggplot(aes(x = Murder, y = Assault, size = UrbanPop, color = cluster)) +
-  geom_point() +
-  theme_bw()
+
+You can observe that the distance matrix is symmetric and the diagonal contains
+`0`s. The distance matrix is used as an input for the clustering algorithm. You 
+can perform the clustering using the `hclust` function with the `distances` matrix. 
+Try that now:
+```{r hclust, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup"}
+hclust_res <- hclust(___)
 ```
-Please, note that the `ggplot2` package makes use of the `factors` in order to
-correctly determine the coloring of the points. If the color values is numeric then
-`ggplot2` assumes that feature is "scale" not the category and do the coloring 
-differently.
 
-> Try to use different distances than the `Euclidean`. You can use parameter `method` in 
-function call.
+```{r hclust-solution}
+hclust_res <- hclust(distances)
+```
 
-> Try to explore different `method` values of parameters and check the resulting 
-dendrograms. 
+```{r hclust-check}
+lecture_grade_code()
+```
 
-# Assigment
+### Dendrogram
+Now we can plot the resulting object `hclust_res` using the `plot` function. The plot is a
+dendogram, which shows the hierarchical structure of the clustering. Plot the
+dendogram:
+```{r hclust-plot, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup"}
+plot(___)
+```
 
-In our third assignment we will be working with the subset of (OULAD data set)[https://analyse.kmi.open.ac.uk/open_dataset]. 
-This data set has been released by the Open University in United Kingdom and 
-contains the information about approximately 30,000 students of the university in
-years 2013 and 2014. In our case, we will be using the assessment data from the one 
-course. The assignment data are in the csv format (as usual) and stored data set
-contains 4 columns corresponding to the 4 assignments (A1 - A4). The values in cells
-are achieved scores in assignments by individual students. Each row represents one student.
+```{r hclust-plot-solution}
+plot(hclust_res)
+```
 
-## Instructions
-Perform k-means clustering using the provided dataset:
+```{r hclust-plot-check}
+lecture_grade_code()
+```
 
-- read the data using `read_csv` function and store them in variable `input_data`
-- visualize the data using `ggplot2` library
-- normalize the data using the `normalize` function
-- impute the missing values with 0
-- select the optimal number of clusters `k` using both Elbow and Silhouette methods
-- pick one of the selected `k` values and perform the clustering
-- visualize the results using `fviz_cluster` function
-- Hints: 
-  - for visualization of the data you can use `geom_point` or `geom_histogram` functions
-    
-Optionally:
+Finally, we can cut the dendogram into `k` clusters using the `cutree` function.
+Cut the dendogram into `3` clusters using the `hclust_res` object:
 
-- perform the clustering using the Agglomerative hierarchical clustering
-- visualize the results using the `dendextend` package
-- select the number of clusters `k` by visual inspection of the dendrogram
-- Hints:
-  - you can use the `cutree` function to get the cluster labels
-  - you can use the `color_branches` function to color the dendrogram branches
-    
-## Submission
-Submit the task via Moodle in corresponding section. Your submission should contain
-one `.Rmd` file named `05_submission.Rmd`.
+```{r hac-cut, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup"}
+hclust_3 <- cutree(___, k = ___)
+```
+
+```{r hac-cut-solution}
+hclust_3 <- cutree(hclust_res, k = 3)
+```
+
+```{r hac-cut-check}
+lecture_grade_code()
+```
+
+Let us check the resulting cut via calling the cutted tree stored in `hclust_3`:
+```{r hac-cut-view, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup"}
+___
+```
+
+```{r hac-cut-view-solution}
+hclust_3
+```
+
+```{r hac-cut-view-check}
+lecture_grade_code()
+```
+
+### Pretty dendogram
+
+To "prettify" the dendrogram with our clusters we can employ the functions from `dendextend` 
+package. First the resulting object `hclust_res` needs to be converted to the dendrogram object
+of the `dendextend` package. Convert it using `as.dendrogram` function:
+```{r hac-dendextend, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup"}
+dend <- as.dendrogram(___)
+```
+
+```{r hac-dendextend-solution}
+dend <- as.dendrogram(hclust_res)
+```
+
+```{r hac-dendextend-check}
+lecture_grade_code()
+```
+
+Now we can color the branches of the dendrogram using the `color_branches` function and
+plot it using the `plot` function. Set the `k` parameter to `3`. Do that now:
+```{r hac-dendextend-plot, exercise=TRUE, exercise.setup = "fviz-cluster-norm-2-4-setup"}
+color_branches(dend, k = ___) |>
+  ___()
+```
+
+```{r hac-dendextend-plot-solution}
+color_branches(dend, k = 3) |>
+  plot()
+```
+
+```{r hac-dendextend-plot-check}
+lecture_grade_code()
+```
+
+## Conclusion
+This concludes our third seminar lecture, where you learned about clustering methods
+`kmeans` and `hclust`. Next comes the third assignment, which will available after of our seminar.
+
+Here we repeat the important information regarding your consent to the data collection. The following hash will be used to identify you in the data from this lecture and to delete your data after the project is finished:
+
+```{r, echo=FALSE}
+textOutput("id_display2")
+```
+\
+Please, keep it for your records in case you change your mind and want to delete your data.

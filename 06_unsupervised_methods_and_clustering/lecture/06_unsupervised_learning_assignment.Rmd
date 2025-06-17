@@ -1,0 +1,200 @@
+---
+title: "Unsupervised Learning - assignment"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+---
+
+```{r setup, include=FALSE, context="server"}
+library(learnr)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+tutorial_options(exercise.eval = FALSE)
+
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(factoextra)
+library(dendextend)
+library(cluster)
+library(patchwork)
+```
+
+## Assigment
+
+In our third assignment we will be working with the subset of (OULAD data set)[https://analyse.kmi.open.ac.uk/open_dataset]. 
+This data set has been released by the Open University in United Kingdom and 
+contains the information about approximately 30,000 students of the university in
+years 2013 and 2014. In our case, we will be using the assessment data from the one 
+course. The assignment data are in the csv format (as usual) and stored data set
+contains 4 columns corresponding to the 4 assignments (A1 - A4). The values in cells
+are achieved scores in assignments by individual students. Each row represents one student.
+
+```{r exercise-setup, echo=FALSE}
+input_data <- read_csv("data/assigment_data.csv")
+```
+
+### Check data   
+Explore the `input_data` using `head`, `str` and `summary` functions.
+```{r exercise-1, exercise=TRUE, exercise.setup = "exercise-setup"}
+___(___)
+
+___(___)
+
+___(___)
+```
+
+### Visualize
+
+First visualize data using `ggplot2` library in combination with `patchwork` package.
+
+#### Histograms
+Create histograms of individual features. For plotting use `geom_histogram` function
+in combination with `facet_wrap` function, which will create a grid of plots. Data 
+are stored in `input_data` variable. To use the `facet_wrap` function you need to
+reshape the data from wide to long format. Use `pivot_longer` function from `tidyverse` package.
+For selection of all columns use `everything()` function. Create histogram now:
+
+```{r exercise-2, exercise=TRUE, exercise.setup = "exercise-setup"}
+# prepare data
+___ |> 
+  ___(___ = ___(), 
+      ___ = "assignment",
+      ___ = "score") |>
+  # plot
+  ___(___(___ = score)) +
+  ___() +
+  ___(~___) # grid based on the assignment
+```
+
+#### Scatter plots
+Now create scatter plots of the data. Use `geom_point` function to create scatter plots
+of A1 vs A2 and A3 vs A4. Use `patchwork` package to combine the plots using the `/` operator.
+Store individual scatter plots in `g1` and `g2` variables before combining them with `/` operator.
+
+```{r exercise-3, exercise=TRUE, exercise.setup = "exercise-setup"}
+# A1 vs A2
+g1 <-
+  ___ |>
+  ___(___(___ = ___, ___ = ___)) +
+  ___()
+
+# A3 vs A4
+g2 <-
+  ___ |>
+  ___(___(___ = ___, ___ = ___)) +
+  ___()
+
+# combine plots and plot
+___ / ___
+```
+
+### Imputation
+
+When checking the data you might have noticed that some values are missing. Now it is 
+the time to replace `NA` values with `0`. Replace them now and store the result in
+`data_imputed` variable:
+
+```{r exercise-4, exercise=TRUE, exercise.setup = "exercise-setup"}
+# copy  input_data to new variable
+___ <- ___
+
+# replace NA values with 0 in data_imputed
+___[___(___)] <- ___
+```
+
+Hint: There exist function `is.na`.
+
+```{r exercise-2-setup, echo=FALSE}
+input_data <- read_csv("data/assigment_data.csv")
+
+data_imputed <- input_data
+data_imputed[is.na(data_imputed)] <- 0
+
+normalize <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+```
+
+### Normalize
+You have now the idea how the data looks like and you replaced all missing values
+with `0`. Normalize them in order to get ready for the clustering. 
+Use function `normalize` from the lecture:
+```{r normalize, eval = FALSE}
+normalize <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+```
+Apply the function to all columns of the `data_imputed` data, store the result 
+in `data_normalized` variable:
+
+```{r exercise-5, exercise=TRUE, exercise.setup = "exercise-2-setup"}
+(
+___ <- 
+  ___ |>
+  ___(___(___(), ___))
+)
+```
+
+> Note: you might notice extern `()` in the code. This trick forces the R to print
+the result of the operation to the console. Otherwise, the result is not printed
+to the console.
+
+### Pick optimal `k` using Elbow method
+```{r exercise-3-setup, echo=FALSE}
+input_data <- read_csv("data/assigment_data.csv")
+
+data_imputed <- input_data
+data_imputed[is.na(data_imputed)] <- 0
+
+normalize <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+data_normalized <- data_imputed |>
+  mutate(across(everything(), normalize))
+```
+
+Finally, your data are ready for clustering using `kmeans` algorithm. At first,
+pick the optimal number of clusters `k` using Elbow method. Use `fviz_nbclust` function
+to produce the plot, which will help you with selection. Use `data_normalized` for
+the clustering. The `method` parameter should reflect the Elbow method using total
+within-cluster sum of squares (`wss`).
+
+```{r exercise-6, exercise=TRUE, exercise.setup = "exercise-3-setup"}
+___(___, 
+    ___, 
+    ___ = "___") 
+```
+
+### k-means
+
+With picked number of `centers` from the previous step. Do the clustering of the `data_normalized`
+using `kmeans` function. Store results in `kmeans_result` variable.
+
+```{r exercise-7, exercise=TRUE, exercise.setup = "exercise-3-setup"}
+___ <- 
+  ___ |>
+  ___(___ = ___)
+```
+
+### Visualization of result
+Finally, visualize the clustering result using `fviz_cluster` function. Because
+I cannot know, which `k` you will pick, we need to copy the code from previous step into this
+code "chunk". Then write the code for visualization.
+
+```{r exercise-8, exercise=TRUE, exercise.setup = "exercise-3-setup"}
+# from previous step
+___ <- 
+  ___ |>
+  ___(___ = ___)
+
+# visualization
+___(___, ___ = ___)
+```
+
+### Submission 
+Now, you have the final result. Copy your code from the last step (*Visualization of result*) and paste it 
+to the Moodlelab in the [third assignment](https://moodlelab.hu-berlin.de/mod/assign/view.php?id=11433).

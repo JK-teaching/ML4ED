@@ -1,0 +1,170 @@
+---
+title: "Unsupervised Learning - assignment"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+---
+
+```{r setup, include=FALSE, context="server"}
+library(learnr)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+tutorial_options(exercise.eval = FALSE)
+
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(caret)
+library(patchwork)
+```
+
+## Assigment
+
+In today assignment we will be using [The HarvardX-MITx Person‐Course Dataset AY2013](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/26147). 
+You can read more about this data set in the corresponding link. Your task is to 
+predict if the student of course `HarvardX/CS50x/2012` will pass or fail the course
+(`grade` is 0 for failed and 1 for passed) based on `ndays_act` and `nchapters` 
+features using k-Nearest Neighbours (`knn`) classifier. To work on result prediction
+you should be using `caret` package. Data are already prepared for you in variable
+`input_data`.
+
+```{r exercise-setup, echo=FALSE}
+input_data <- read_csv("data/assignment.csv")
+```
+
+> The work you are doing in chunks depends on previous one. Thus, if you get stuck
+it might be a result of an error from previous steps.
+
+## Check data   
+Explore the `input_data` using `head`, `str` and `summary` functions.
+```{r exercise-1, exercise=TRUE, exercise.setup = "exercise-setup"}
+___(___)
+
+___(___)
+
+___(___)
+```
+
+## Filter course
+At first, we need to `filter` students that are enrolled in the course `HarvardX/CS50x/2012`. 
+Store the resulting data in variable `dataset`. Based on the `input_data` structure,
+infere the column name that contains the course identifier.
+```{r exercise-filter-course, exercise=TRUE, exercise.setup = "exercise-setup"}
+___ <-
+  ___ |>
+  ___(___ == "___")
+```
+
+## Filter students
+Next, we will focus on students who have been graded and explored the course. That 
+means we will `filter` out students who do not have a grade value (`grade = NA`) and
+those who did not explore the course (`explored = 0`). Store the result again
+in `dataset` variable and overwrite the previous value.
+```{r exercise-filter-students, exercise=TRUE, exercise.setup = "exercise-filter-course"}
+___ <-
+  ___ |>
+  ___(!___.___(___), 
+      ___ == ___)
+```
+
+## Select target variable and features
+Now, we have only samples (students) of our interest. Yet, we have lots of features
+out of the scope of our task. We will `select` only the target variable `grade` and features
+`ndays_act` and `nchapters`. Again, store the result in `dataset` variable and overwrite the previous value.
+```{r exercise-select-target-features, exercise=TRUE, exercise.setup = "exercise-filter-students"}
+___ <-
+  ___ |>
+  ___(___, ___, ___)
+```
+
+## Mutate target variable
+The `grade` variable is currently represented as 0 (fail) and 1 (pass). We will `mutate` it to
+pass/fail values. There is the function `if_else` that can be used to change the values of a variable based on a condition.
+Store the result in `dataset` variable and overwrite the previous value.
+```{r exercise-mutate-target, exercise=TRUE, exercise.setup = "exercise-select-target-features"}
+___ <-
+  ___ |>
+  ___(___ = ___(___ == ___,
+                "___",
+                "___")
+      )
+```
+
+## Replace missing values
+Finally, we will replace missing values of features (`NA`s) with `0`. For that we will use `replace_na` function.
+Store the result in `dataset` variable and overwrite the previous value.
+```{r exercise-replace-missing, exercise=TRUE, exercise.setup = "exercise-mutate-target"}
+___ <-
+  ___ |>
+  ___(list(___ = ___, 
+           ___ = ___)
+      )
+```
+
+## Setup classification task
+Now we are ready to perform the classification task using k-Nearest Neighbours (`knn`) classifier.
+At first, we need to fix seed (`1234`) and prepare the folds, training control object and empty results data frame (with 
+`fold`, `accuracy`, `precision` and `recall` columns) like in our lecture. 
+```{r exercise-setup-classification, exercise=TRUE, exercise.setup = "exercise-replace-missing"}
+___(___)
+# create (by default) 10 Folds based on grade variable of the dataset
+folds <- ___(___$___, ___ = ___)
+
+# caret control structure
+fit_control <- ___(___ = "___", # train model using cross-validation
+                   ___ = ___) # use 10 folds
+
+# define empty results 
+results <- ___(___ = ___(___),
+               ___ = ___(___),
+               ___ = ___(___),
+               ___ = ___(___))
+```
+
+## Perform classification
+Now we will perform the classification task using `knn` classifier using our 
+well-known loop (like the one in the lecture).
+```{r exercise-perform-classification, exercise=TRUE, exercise.setup = "exercise-setup-classification", exercise.lines = 30}
+# for each fold
+for(n in 1:max(___)) {
+  
+  indx <- ___(___ == ___) 
+  validation <- ___[___,] # use fold as a validation data set
+  training <- ___[-___,] # use rest of data for training 
+  
+  # fit model
+  fit <- ___(___, # predict grade using all (.) features
+             ___ = "___",
+             ___ = ___,
+             ___ = ___)
+  
+  predictions <- ___(___, ___ = ___) # predict the class for validation dataset
+  
+  cm <- ___(___ = ___, # predictions
+            ___ = ___.___(___$___), # validation
+            ___ = "___") # positive class
+  
+  # store results
+  results[n, ] <- c(___,
+                    ___$___["___"], # Accuracy
+                    ___$___["___"], # = Precision
+                    ___$___["___"]) # = Recall
+}
+
+results
+```
+
+## Show results
+Finally, we will `summarise` the `results` and show the `mean` values of `accuracy`, `precision` and `recall`.
+```{r exercise-show-results, exercise=TRUE, exercise.setup = "exercise-perform-classification"}
+___ |>
+  ___(___ = ___(___),
+      ___ = ___(___),
+      ___ = ___(___))
+```
+
+## Submission 
+Now, you have the final result. Copy your code from the second to last step (*Perform classification*) and paste it 
+to the Moodlelab in the [fourth assignment](https://moodlelab.hu-berlin.de/mod/assign/view.php?id=11434).
